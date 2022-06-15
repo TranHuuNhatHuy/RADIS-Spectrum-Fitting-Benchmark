@@ -1,0 +1,12 @@
+{
+  "fileName": "CO2-1-1900-2300-1.01325-t300-v300-r300-p1.spec",
+  "molecule": "CO2",
+  "iso": 1,
+  "fromwl": 1900,
+  "towl": 2300,
+  "pressure": 1.01325,
+  "Tgas": 300,
+  "Tvib": 300,
+  "Trot": 300,
+  "path": 1
+}

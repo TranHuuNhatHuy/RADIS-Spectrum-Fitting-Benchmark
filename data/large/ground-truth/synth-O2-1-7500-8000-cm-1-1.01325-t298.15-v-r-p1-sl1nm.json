@@ -1,0 +1,14 @@
+{
+  "fileName": "synth-O2-1-7500-8000-cm-1-1.01325-t298.15-v-r-p1-sl1nm.spec",
+  "molecule": "O2",
+  "isotope": "1",
+  "from_wavelength": 7500,
+  "to_wavelength": 8000,
+  "pressure": 1.01325,
+  "mole_fraction": 0.21,
+  "path_length": 1,
+  "slit": "1 nm",
+  "fit": {
+    "Tgas": 298.15
+  }
+}

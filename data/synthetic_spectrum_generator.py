@@ -19,8 +19,9 @@ the algorithm and other specific settings will be stored as a model file in
 import json
 import numpy as np
 import math
+import radis
 
-from radis import Spectrum, calc_spectrum, experimental_spectrum
+from radis import calc_spectrum, experimental_spectrum, plot_diff
 
 
 
@@ -54,7 +55,7 @@ def synthSpectrumGenerate():
     slit_unit = "nm"
     name = f"synth-{molecule}-{isotope}-{from_wl}-{to_wl}-{wunit}-{pressure}-t{Tgas}-v{Tvib}-r{Trot}-p{path_length}-sl{slit}{slit_unit}"
 
-    # -------------------------------------- EDIT HERE! -------------------------------------- #
+    # ---------------------------------------------------------------------------------------- #
 
     # Generate synthetic spectrum based on parameters for ground-truth
     s = (
@@ -91,7 +92,7 @@ def synthSpectrumGenerate():
 
 
     # Re-generate noise-added spectrum
-    s_synth = experimental_spectrum(s_wav, s_val, wunit = wunit, Iunit = f"W/cm2/sr/{wunit}")
+    s_synth = experimental_spectrum(s_wav, s_val, wunit = wunit, Iunit = s.units["radiance"], name = f"noise_added_{name}")
     # Show it to make sure nothing goes wrong, again
     s_synth.plot(show = True)
 
@@ -141,6 +142,9 @@ def synthSpectrumGenerate():
     with open(gt_dir, 'w') as f:
         json.dump(written_info, f, indent = 2)
         print("JSON file successfully created.")
+
+    # Plot difference between 2 spectra to make sure lol
+    plot_diff(s, s_synth, method = ["diff", "ratio"], show = True)
 
 
 

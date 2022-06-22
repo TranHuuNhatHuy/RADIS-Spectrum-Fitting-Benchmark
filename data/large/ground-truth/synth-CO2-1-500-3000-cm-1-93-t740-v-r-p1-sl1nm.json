@@ -1,0 +1,14 @@
+{
+  "fileName": "synth-CO2-1-500-3000-cm-1-93-t740-v-r-p1-sl1nm.spec",
+  "molecule": "CO2",
+  "isotope": "1",
+  "from_wavelength": 500,
+  "to_wavelength": 3000,
+  "pressure": 93,
+  "mole_fraction": 0.96,
+  "path_length": 1,
+  "slit": "1 nm",
+  "fit": {
+    "Tgas": 740
+  }
+}

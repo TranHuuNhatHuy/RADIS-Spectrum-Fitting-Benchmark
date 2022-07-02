@@ -1,0 +1,19 @@
+{
+  "fileName": "synth-NH3-1-500-2000-cm-1-P10-t1000-v-r-mf0.01-p1-sl1nm.spec",
+  "molecule": "NH3",
+  "isotope": "1",
+  "wmin": 500,
+  "wmax": 2000,
+  "wunit": "cm",
+  "pressure": 10,
+  "mole_fraction": 0.01,
+  "path_length": 1,
+  "slit": "1 nm",
+  "fit": {
+    "Tgas": 1000,
+    "bound_Tgas": [
+      900,
+      1900
+    ]
+  }
+}

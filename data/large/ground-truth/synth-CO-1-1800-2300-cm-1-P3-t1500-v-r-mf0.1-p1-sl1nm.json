@@ -1,0 +1,19 @@
+{
+  "fileName": "synth-CO-1-1800-2300-cm-1-P3-t1500-v-r-mf0.1-p1-sl1nm.spec",
+  "molecule": "CO",
+  "isotope": "1",
+  "wmin": 1800,
+  "wmax": 2300,
+  "wunit": "cm",
+  "pressure": 3,
+  "mole_fraction": 0.1,
+  "path_length": 1,
+  "slit": "1 nm",
+  "fit": {
+    "Tgas": 1500,
+    "bound_Tgas": [
+      1000,
+      2000
+    ]
+  }
+}

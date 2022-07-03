@@ -242,8 +242,8 @@ def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult]
 
     if verbose:
         # Load initial values of fit parameters
-        for param in params:
-            kwargs = {param : float(params[param])}
+        for name, param in result.params.items():
+            fit_show = {name : float(param.value)}
         
         # Load conditions (fixed parameters)
 
@@ -253,12 +253,12 @@ def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult]
         conditions.pop("fileName")              # Because calc_spectrum() does not have "fileName" parameter
         conditions["name"] = "best_fit"         # But it only has "name".
         
-        kwargs = {**kwargs, **conditions}
+        fit_show = {**fit_show, **conditions}
 
         # Generate best fitted spectrum result
 
         s_result = calc_spectrum(
-            **kwargs,
+            **fit_show,
             cutoff = 1e-25,
             wstep = 0.001,
             truncation = 1,

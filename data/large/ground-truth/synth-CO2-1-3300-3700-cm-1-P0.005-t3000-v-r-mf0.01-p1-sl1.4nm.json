@@ -4,7 +4,7 @@
   "isotope": "1",
   "wmin": 3300,
   "wmax": 3700,
-  "wunit": "cm",
+  "wunit": "cm-1",
   "pressure": 0.005,
   "mole_fraction": 0.01,
   "path_length": 1,

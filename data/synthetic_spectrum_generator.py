@@ -37,23 +37,23 @@ def synthSpectrumGenerate():
     # paramater. Later implementations will expand this.
 
     # Parameters for ground-truth.
-    from_wl = 3300
-    to_wl = 3700
+    from_wl = 7500
+    to_wl = 8000
     wunit = "cm-1"
-    molecule = "CO2"
+    molecule = "O2"
     isotope = "1"
-    pressure = 0.005
-    Tgas = 3000
-    bound_Tgas = [2000, 4000]
+    pressure = 1.01325
+    Tgas = 298.15
+    bound_Tgas = [0, 1000]
     Tvib = ""
     bound_Tvib = []
     Trot = ""
     bound_Trot = []
-    mole_fraction = 0.01
+    mole_fraction = 0.21
     path_length = 1
-    slit = 1.4
+    slit = 1
     slit_unit = "nm"
-    name = f"synth-{molecule}-{isotope}-{from_wl}-{to_wl}-{wunit}-{pressure}-t{Tgas}-v{Tvib}-r{Trot}-p{path_length}-sl{slit}{slit_unit}"
+    name = f"synth-{molecule}-{isotope}-{from_wl}-{to_wl}-{wunit}-P{pressure}-t{Tgas}-v{Tvib}-r{Trot}-mf{mole_fraction}-p{path_length}-sl{slit}{slit_unit}"
 
     # ---------------------------------------------------------------------------------------- #
 
@@ -69,7 +69,7 @@ def synthSpectrumGenerate():
             pressure = pressure,            # in bar
             mole_fraction = mole_fraction,
             path_length = path_length,      # in cm
-            wstep = "auto",
+            wstep = 0.001,
             databank = "hitran",
             name = name)
         .apply_slit(slit, slit_unit)        # Apply slit function to reduce resolution
@@ -106,6 +106,9 @@ def synthSpectrumGenerate():
 
     s_synth.store(spectrum_dir + fileName_spec)
 
+    if wunit == "cm":
+        wunit = "cm-1" # Revert cm back to cm-1
+
 
     # Log the information to ground-truth file
     fileName_json = f"{name}.json"
@@ -115,8 +118,9 @@ def synthSpectrumGenerate():
         "fileName": fileName_spec,
         "molecule": molecule,
         "isotope": isotope,
-        "from_wavelength": from_wl,
-        "to_wavelength": to_wl,
+        "wmin": from_wl,
+        "wmax": to_wl,
+        "wunit": wunit,
         "pressure": pressure,
         "mole_fraction": mole_fraction,
         "path_length": path_length,

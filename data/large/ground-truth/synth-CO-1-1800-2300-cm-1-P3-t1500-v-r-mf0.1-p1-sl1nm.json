@@ -4,13 +4,13 @@
   "isotope": "1",
   "wmin": 1800,
   "wmax": 2300,
-  "wunit": "cm",
+  "wunit": "cm-1",
   "pressure": 3,
   "mole_fraction": 0.1,
   "path_length": 1,
   "slit": "1 nm",
   "fit": {
-    "Tgas": 1500,
+    "Tgas": 1200,
     "bound_Tgas": [
       1000,
       2000

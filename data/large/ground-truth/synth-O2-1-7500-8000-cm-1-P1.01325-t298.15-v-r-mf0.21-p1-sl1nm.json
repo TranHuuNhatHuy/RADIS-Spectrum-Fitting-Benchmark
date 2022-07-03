@@ -1,0 +1,19 @@
+{
+  "fileName": "synth-O2-1-7500-8000-cm-1-P1.01325-t298.15-v-r-mf0.21-p1-sl1nm.spec",
+  "molecule": "O2",
+  "isotope": "1",
+  "wmin": 7500,
+  "wmax": 8000,
+  "wunit": "cm",
+  "pressure": 1.01325,
+  "mole_fraction": 0.21,
+  "path_length": 1,
+  "slit": "1 nm",
+  "fit": {
+    "Tgas": 298.15,
+    "bound_Tgas": [
+      0,
+      1000
+    ]
+  }
+}

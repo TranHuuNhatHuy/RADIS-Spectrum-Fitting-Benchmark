@@ -1,9 +1,10 @@
 {
-  "fileName": "CO2-1-1900-2300-cm-1.01325-t300-v300-r300-p1-sl0.5nm.spec",
+  "fileName": "CO2-1-1900-2300-cm-P1.01325-t300-v300-r300-mf0.1-p1-sl0.5nm.spec",
   "molecule": "CO2",
   "isotope": "1",
-  "from_wavelength": 1900,
-  "to_wavelength": 2300,
+  "wmin": 1900,
+  "wmax": 2300,
+  "wunit": "cm-1",
   "pressure": 1.01325,
   "mole_fraction": 0.1,
   "path_length": 1,

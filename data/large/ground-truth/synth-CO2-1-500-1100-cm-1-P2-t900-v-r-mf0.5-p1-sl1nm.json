@@ -1,0 +1,19 @@
+{
+  "fileName": "synth-CO2-1-500-1100-cm-1-P2-t900-v-r-mf0.5-p1-sl1nm.spec",
+  "molecule": "CO2",
+  "isotope": "1",
+  "wmin": 500,
+  "wmax": 1100,
+  "wunit": "cm",
+  "pressure": 2,
+  "mole_fraction": 0.5,
+  "path_length": 1,
+  "slit": "1 nm",
+  "fit": {
+    "Tgas": 900,
+    "bound_Tgas": [
+      500,
+      1500
+    ]
+  }
+}

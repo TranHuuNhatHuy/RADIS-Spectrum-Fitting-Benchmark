@@ -1,0 +1,15 @@
+{
+  "fileName": "CO2_measured_spectrum_4-5um.spec",
+  "molecule": "CO2",
+  "isotope": "1,2,3",
+  "wmin": 4195,
+  "wmax": 4200,
+  "wunit": "nm",
+  "pressure": 1e-3,
+  "mole_fraction": 1,
+  "path_length": 10,
+  "slit": "1.4 nm",
+  "fit": {
+    "Tgas": 1100
+  }
+}

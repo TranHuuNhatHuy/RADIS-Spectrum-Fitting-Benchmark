@@ -3,8 +3,7 @@
 
 RADIS Synthetic Spectrum Generator for Fitting Benchmarking Process
 
-This module is to synthesize various spectra for the benchmarking process based on
-4 groups: large and LTE, large and Non-LTE, narrow and LTE, narrow and Non-LTE.
+This module is to synthesize various spectra for the benchmarking process.
 
 Generated spectra are stored in ./data/<spectrum-type>/spectrum in RADIS .spec file,
 while their corresponding ground-truths are stored in ./data/<spectrum-type>/ground-truth
@@ -21,7 +20,7 @@ import numpy as np
 import math
 import radis
 
-from radis import calc_spectrum, experimental_spectrum, plot_diff
+from radis import calc_spectrum, experimental_spectrum, plot_diff, Spectrum
 
 
 
@@ -30,12 +29,6 @@ def synthSpectrumGenerate():
 
     # -------------------------------------- EDIT HERE! -------------------------------------- #
 
-    # Current spectrum type, either "large", "narrow", "one-temp" (LTE) or "three-temp" (Non-LTE)
-    spec_type = "large"
-
-    # Note: current implementation (June 19 2022) is for LTE so I assume only Tgas is the fit
-    # paramater. Later implementations will expand this.
-
     # Parameters for ground-truth.
     from_wl = 7500
     to_wl = 8000
@@ -43,19 +36,24 @@ def synthSpectrumGenerate():
     molecule = "O2"
     isotope = "1"
     pressure = 1.01325
-    Tgas = 298.15
-    bound_Tgas = [0, 1000]
+    Tgas = 298
     Tvib = ""
-    bound_Tvib = []
     Trot = ""
-    bound_Trot = []
     mole_fraction = 0.21
     path_length = 1
     slit = 1
     slit_unit = "nm"
     name = f"synth-{molecule}-{isotope}-{from_wl}-{to_wl}-{wunit}-P{pressure}-t{Tgas}-v{Tvib}-r{Trot}-mf{mole_fraction}-p{path_length}-sl{slit}{slit_unit}"
 
+    # Fitting pipeline required
+    method = "leastsq"
+    fit_var = "radiance"
+    normalize = True
+    max_loop = 200
+
     # ---------------------------------------------------------------------------------------- #
+
+    spec_type = "LTE"
 
     # Generate synthetic spectrum based on parameters for ground-truth
     s = (
@@ -86,13 +84,21 @@ def synthSpectrumGenerate():
     s_val += np.random.normal(size = s_val.size, scale = noise_scale)
 
     # Reproduce dilatation by applying non-linear transformation, with scale 0.66% of deviation
-    wav_mean = np.mean([wav for wav in s_wav if not(math.isnan(wav))])
-    print(wav_mean)
-    s_wav = wav_mean + (s_wav - wav_mean) * 1.0066
+    # wav_mean = np.mean([wav for wav in s_wav if not(math.isnan(wav))])
+    # print(wav_mean)
+    # s_wav = wav_mean + (s_wav - wav_mean) * 1.0066
 
 
     # Re-generate noise-added spectrum
-    s_synth = experimental_spectrum(s_wav, s_val, wunit = wunit, Iunit = s.units["radiance"], name = f"noise_added_{name}")
+    s_synth = Spectrum(
+        {
+            fit_var : (s_wav, s_val)
+        },
+        wunit = wunit,
+        units = {
+            fit_var : s.units[fit_var]
+        }
+    )
     # Show it to make sure nothing goes wrong, again
     s_synth.plot(show = True)
 
@@ -127,20 +133,21 @@ def synthSpectrumGenerate():
         "slit": f"{slit} {slit_unit}",
         "fit": {
             "Tgas": Tgas,
-            "bound_Tgas": bound_Tgas,
             "Tvib": Tvib,
-            "bound_Tvib": bound_Tvib,
             "Trot": Trot,
-            "bound_Trot": bound_Trot
+        },
+        "pipeline": {
+            "method": "leastsq",
+            "fit_var": "radiance",
+            "normalize": True,
+            "max_loop": 100,
         }
     }
     # Remove temperatures that does not include in the fitting process (such as when LTE)
     if written_info["fit"]["Tvib"] == "":
         written_info["fit"].pop("Tvib")
-        written_info["fit"].pop("bound_Tvib")
     if written_info["fit"]["Trot"] == "":
         written_info["fit"].pop("Trot")
-        written_info["fit"].pop("bound_Trot")
 
     # Write the information of spectrum into a new JSON file
     with open(gt_dir, 'w') as f:

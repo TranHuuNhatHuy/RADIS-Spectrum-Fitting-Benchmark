@@ -17,7 +17,7 @@ from radis.tools.database import load_spec
 # General model for LTE spectra. This model will be heavily modified during
 # benchmarking process to see which one works best.
 
-def residual_LTE(params, conditions, s_data, verbose = True):
+def residual_LTE(params, conditions, s_data, residuals, log_fitvals, verbose = True):
     """A cost function that calculates an LTE spectrum based on the
     initial conditions and values of fit parameters, then returning a 1D
     array (if least-squared method is used) or a scalar (if other methods
@@ -36,13 +36,19 @@ def residual_LTE(params, conditions, s_data, verbose = True):
 
     Other parameters
     ----------
+    residuals : list
+        the list containing residual history as the minimizer runs. This
+        is for fitting result reporting only.
+    log_filvals : list
+        the list containing fitting values of all fit parameters as the
+        minimizer runs. This is for fitting result reporting only.
     verbose : bool
         by default, True, will print out information of fitting process.
 
     Returns
     -------
-    diff: list
-        a 1D-array containing difference between two spectra.
+    residual: float
+        residuals of the two spectra, using RADIS's get_residual().
 
     """
 
@@ -77,10 +83,10 @@ def residual_LTE(params, conditions, s_data, verbose = True):
         .apply_slit(float(slit), slit_unit)     # Simulate slit
         .take(fit_var)
         .normalize()                            # Normalize
-        .resample(                              # Downgrade to data spectrum's resolution
-            s_data, 
-            energy_threshold = 2e-2
-        )
+        # .resample(                              # Downgrade to data spectrum's resolution
+        #     s_data, 
+        #     energy_threshold = 2e-2
+        # )
     )
 
 
@@ -92,7 +98,13 @@ def residual_LTE(params, conditions, s_data, verbose = True):
         norm = "L2",
         ignore_nan = "True"
     )
-    #residual = get_residual(s_model, s_data, "radiance")
+    
+    residuals.append(residual)                  # Log the current residual
+    
+    current_fitvals = []
+    for param in params:
+        current_fitvals.append(float(params[param]))
+    log_fitvals.append(current_fitvals)         # Log the current fitting values of fit parameters
 
 
     # Print information of fitting process
@@ -100,6 +112,7 @@ def residual_LTE(params, conditions, s_data, verbose = True):
         for param in params:
             print(f"\n{param} = {float(params[param])}")
         print(f"Residual = {residual}\n")
+        #s_model.plot(show = True)
 
 
     return residual

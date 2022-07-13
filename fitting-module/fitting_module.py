@@ -22,17 +22,18 @@ import time
 import astropy.units as u
 import json
 import os
+import matplotlib.pyplot as plt
 from os.path import join
 from typing import Union
 
-from radis import calc_spectrum, plot_diff, Spectrum, SpectrumFactory, experimental_spectrum
+from radis import calc_spectrum, plot_diff, Spectrum, SpectrumFactory, experimental_spectrum, calculated_spectrum
 from lmfit import minimize, Parameters, fit_report
 from lmfit.minimizer import MinimizerResult
 from radis.tools.database import load_spec
 
 # Load models
 from model_LTE import residual_LTE
-from model_nonLTE import NonLTEModel
+from model_nonLTE import residual_NonLTE
 
 
 
@@ -49,7 +50,7 @@ def get_JSON(
     input_file : str
         path to the JSON input file from ./data/, will be changed when implementing
         to RADIS codebase. For now the format is <spectrum-type>/ground-truth/<name>.json.
-        For example:: "large/ground-truth/CO2_measured_spectrum_4-5um.json"
+        For example:: "LTE/ground-truth/CO2_measured_spectrum_4-5um.json"
 
     Other Parameters
     ----------------
@@ -74,7 +75,7 @@ def get_JSON(
         # Get fit parameters first and load them into params
 
         fit_params = conditions.pop("fit")
-        dhb = 500              # Default half-bound for fit temperatures, in case user don't specify bounds
+        dhb = 1000              # Default half-bound for fit temperatures, in case user don't specify bounds
 
 
         if "Tgas" in fit_params:
@@ -122,7 +123,21 @@ def get_JSON(
         return conditions, params
 
 
-def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult]:
+def spectrum_refinement(s_data, pipeline) -> Spectrum:
+    """Receive an experimental spectrum and further refine it according to the provided pipeline.
+    Refinement process includes extracting the desired spectrum quantity, removing NaN values,
+    and other additional convolutions. Finally, a refined Spectrum object is returned.
+
+    Parameters
+    ----------
+    s_data : Spectrum
+        experimental spectrum loaded from the path given in input JSON file.
+
+    
+    """
+
+
+def fit_spectrum(input_file, method, verbose = True) -> Union[Spectrum, MinimizerResult]:
     """Fit an experimental spectrum (from here referred as "data spectrum") with a modeled one,
     then derive the fit results. Data spectrum is loaded from the path stated in the JSON file,
     while model spectrum is generated based on the conditions stated in the JSON file, too.
@@ -132,7 +147,7 @@ def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult]
     input_file : str
         path to the JSON input file from ./data/, will be changed when implementing
         to RADIS codebase. For now the format is <spectrum-type>/ground-truth/<name>.json.
-        For example:: "large/ground-truth/CO2_measured_spectrum_4-5um.json"
+        For example:: "LTE/ground-truth/CO2_measured_spectrum_4-5um.json"
     
     Other parameters
     ----------
@@ -157,7 +172,7 @@ def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult]
     # Get s_data spectrum from the path stated in acquired JSON data
     spec_path = "/".join([
         "..",
-        "data/large/spectrum",
+        "data/LTE/spectrum",
         conditions["fileName"]
     ])
 
@@ -178,29 +193,36 @@ def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult]
 
     # Further refine the data spectrum before calculating diff
     fit_var = s_data.get_vars()[0]
+    print(f"Original fit_var: {fit_var}")
     s_data_wav, s_data_val = s_data.get(fit_var)
 
     # A wise man once said, "Nan is good but only in India"
     s_data_mtr = np.vstack((s_data_wav, s_data_val))
 
     # Purge wav-val pairs containing NaN values.
-    s_data_mtr = s_data_mtr[:, ~np.isnan(s_data_mtr).any(axis = 0)]            
+    s_data_mtr = s_data_mtr[:, ~np.isnan(s_data_mtr).any(axis = 0)]           
 
-    s_data = experimental_spectrum(          # Recreate the data spectrum
-        s_data_mtr[0],
-        s_data_mtr[1],
+    # Recreate the data spectrum
+    s_data = Spectrum(
+        {
+            fit_var : (s_data_mtr[0], s_data_mtr[1])
+        },
         wunit = conditions["wunit"],
-        Iunit = s_data.units[fit_var]
+        units = {
+            fit_var : s_data.units[fit_var]
+        }
     )
 
-    # Further refinement
+
+    # Further refinement process
+
     s_data = (
         s_data
         .take(fit_var)
-        .normalize()
         .sort()
-        .offset(-0.2, conditions["wunit"])
     )
+
+    if 
 
     if verbose:
         end_exp_refine = time.time()
@@ -209,26 +231,52 @@ def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult]
         print(f"\nSuccessfully refined the experimental data in {time_exp_refine}s.")
 
 
-    # Decide the type of spectrum among 4 types.
+    # Decide the type of model - LTE or Non-LTE.
     # For now it's just for LTE spectra. Non-LTE will be updated soon.
 
     LTE = True                                         # LTE == True means it's LTE
     if ("Trot" in params) or ("Tvib" in params):
         LTE = False                                    # LTE == False means it's non-LTE
-
-
-    # Commence fitting process
     
-    method = "leastsq"
+    # Determine fitting method, either stated by user or "leastsq" by default
+    #if "method" in conditions:
+    #    method = conditions["method"]   # User-defined
+    #else:
+    #    method = "leastsq"              # By default
+
+    # Additional fitting conditions for the minimizer
+    fit_kws = {
+        'max_nfev': 200,                # Maximum amount of fitting loops allowed
+        'tol': 1e-10
+    }
+
+    # Prepare fitting log
+    residuals = []
+    log_fitvals = []
+
+    # Commence the fitting process
 
     # For LTE spectra
     if LTE:
         print("\nCommence fitting process for LTE spectrum!")
-        result = minimize(residual_LTE, params, method = method, args = [conditions, s_data])
+        result = minimize(
+            residual_LTE, 
+            params, 
+            method = method, 
+            args = [conditions, s_data, residuals, log_fitvals], 
+            **fit_kws
+        )
 
     # For non-LTE spectra
-    #if not(LTE):
-    #    result = minimize(residual_NonLTE, params, method = "leastsq", args = [data, s_data])
+    if not(LTE):
+        print("\nCommence fitting process for non-LTE spectrum!")
+        result = minimize(
+            residual_NonLTE, 
+            params, 
+            method = method, 
+            args = [conditions, s_data, residuals, log_fitvals], 
+            **fit_kws
+        )
 
     
     if verbose:
@@ -250,7 +298,7 @@ def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult]
         slit_info = conditions.pop("slit")      # Because calc_spectrum() does not support slit parameters this way
         slit, slit_unit = slit_info.split()     # But it should be this way instead.
 
-        conditions.pop("fileName")              # Because calc_spectrum() does not have "fileName" parameter
+        fileName = conditions.pop("fileName")   # Because calc_spectrum() does not have "fileName" parameter
         conditions["name"] = "best_fit"         # But it only has "name".
         
         fit_show = {**fit_show, **conditions}
@@ -270,28 +318,84 @@ def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult]
             .apply_slit(float(slit), slit_unit)     # Simulate slit
             .take(fit_var)
             .normalize()                            # Normalize
-            .resample(                              # Downgrade to data spectrum's resolution
-                s_data, 
-                energy_threshold = 2e-2
-            )
+            # .resample(                              # Downgrade to data spectrum's resolution
+            #     s_data, 
+            #     energy_threshold = 2e-2
+            # )
         )
 
         # Plot the difference between the two
+        fig_loc = f"../data/LTE/result/{fileName}/method_comparison/plot_diff/{method}.png"
         plot_diff(
             s_data, 
             s_result, 
             fit_var, 
             method=['diff', 'ratio'], 
-            show = True
+            show = True,
+            #save = fig_loc
         )
 
-
-    return s_result, result
+    return s_result, result, residuals, time_fitting
 
 
 
 if __name__ == "__main__":
 
-    input_path = "large/ground-truth/CO2_measured_spectrum_4-5um.json"
+    # bmSpectrum = "synth-CO-1-1800-2300-cm-1-P3-t1500-v-r-mf0.1-p1-sl1nm"
+    # bmSpectrum = "CO_Tgas1500K_mole_fraction0.01"
+    bmSpectrum = "CO2_measured_spectrum_4-5um"
 
-    fit_spectrum(input_path)
+    input_path = f"LTE/ground-truth/{bmSpectrum}.json"
+
+    #fit_spectrum(input_path, "leastsq")
+
+    # methods = [
+    #     "leastsq",
+    #     "least_squares",
+    #     "differential_evolutions",
+    #     "brute",
+    #     "basinhopping",
+    #     "ampgo",
+    #     "nelder",
+    #     "lbfgsb",
+    #     "powell",
+    #     "cg",
+    #     "cobyla",
+    #     "bfgs",
+    #     "tnc",
+    #     "trust-constr",
+    #     "slsqp",
+    #     "shgo",
+    #     "dual_annealing"
+    # ]
+
+    # json_data = {
+    #     "fileName": f"{bmSpectrum}.spec",
+    #     "fitting-pipeline": {
+    #         "LTE": True,
+    #         "normalization": True,
+    #         "cutoff": 1e-25,
+    #         "offset": "-0.2 nm",
+    #         "wstep": 0.001,
+    #         "truncation": 1,
+    #         "energy_threshold": 2e-2
+    #     }
+    # }
+
+    # for meth in methods:    
+    #     _, result, residuals, time_fitting = fit_spectrum(input_path, meth)
+    #     json_data[meth] = {
+    #         "last_residual": residuals[-1],
+    #         "loops": result.nfev,
+    #         "time": time_fitting
+    #     }
+    #     with open(f"../data/LTE/result/{bmSpectrum}.spec/method_comparison/residual_log/{meth}.txt", 'w') as f:
+    #         for resi in residuals:
+    #             f.write(f"{resi}\n")
+    #         f.close()        
+
+    # with open("../data/LTE/result/CO2_measured_spectrum_4-5um.spec/method_comparison/method_comparison.txt", 'w') as f:
+    #     json.dump(json_data, f, indent = 2)
+    #     print("JSON file successfully created.")
+
+    fit_spectrum(input_path, "lbfgsb")

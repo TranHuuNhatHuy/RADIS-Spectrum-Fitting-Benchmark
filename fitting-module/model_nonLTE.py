@@ -16,7 +16,7 @@ from radis.tools.database import load_spec
 
 # General model for Non-LTE spectra. This model will be heavily modified during
 # benchmarking process to see which one works best.
-def NonLTEModel(factory, fit_params, name, fixed_params = {}) -> Spectrum:
+def residual_NonLTE(factory, fit_params, name, fixed_params = {}) -> Spectrum:
     """Returning a single-slab non-LTE spectrum with Tvib = (T12, T12, T3), Trot
 
     Currently appliable for Non-LTE CO2 modeling.

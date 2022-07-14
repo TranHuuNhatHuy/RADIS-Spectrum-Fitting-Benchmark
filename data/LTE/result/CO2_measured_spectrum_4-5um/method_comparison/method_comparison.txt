@@ -1,0 +1,97 @@
+{
+  "fileName": "CO2_measured_spectrum_4-5um.spec",
+  "fitting-pipeline": {
+    "LTE": true,
+    "normalization": true,
+    "cutoff": 1e-25,
+    "offset": "-0.2 nm",
+    "wstep": 0.001,
+    "truncation": 1,
+    "energy_threshold": 0.02
+  },
+  "leastsq": {
+    "last_residual": 0.0027299042272073103,
+    "loops": 17,
+    "time": 6.128568887710571
+  },
+  "least_squares": {
+    "last_residual": 0.0027299046347610202,
+    "loops": 14,
+    "time": 3.8792104721069336
+  },
+  "differential_evolutions": {
+    "last_residual": 0.0027299042330808853,
+    "loops": 48,
+    "time": 7.211840629577637
+  },
+  "brute": {
+    "last_residual": 0.002784721834568091,
+    "loops": 20,
+    "time": 3.13600492477417
+  },
+  "basinhopping": {
+    "last_residual": 0.003047172548222827,
+    "loops": 201,
+    "time": 31.650216579437256
+  },
+  "ampgo": {
+    "last_residual": 0.002730133209493655,
+    "loops": 201,
+    "time": 36.60996413230896
+  },
+  "nelder": {
+    "last_residual": 0.0027299042330808853,
+    "loops": 48,
+    "time": 7.532714605331421
+  },
+  "lbfgsb": {
+    "last_residual": 0.002729904381527972,
+    "loops": 12,
+    "time": 1.8955962657928467
+  },
+  "powell": {
+    "last_residual": 0.0027299042271944525,
+    "loops": 38,
+    "time": 6.310025691986084
+  },
+  "cg": {
+    "last_residual": 0.002729904692232839,
+    "loops": 34,
+    "time": 5.223567724227905
+  },
+  "cobyla": {
+    "last_residual": 0.0027299044752413077,
+    "loops": 22,
+    "time": 3.028048515319824
+  },
+  "bfgs": {
+    "last_residual": 0.002729904235170728,
+    "loops": 20,
+    "time": 2.9560532569885254
+  },
+  "tnc": {
+    "last_residual": 0.0027299042284574205,
+    "loops": 36,
+    "time": 5.905533313751221
+  },
+  "trust-constr": {
+    "last_residual": 0.0027299042271945353,
+    "loops": 16,
+    "time": 2.3700413703918457
+  },
+  "slsqp": {
+    "last_residual": 0.0027299969016334855,
+    "loops": 18,
+    "time": 3.160074472427368
+  },
+  "shgo": {
+    "last_residual": 0.002729904227233636,
+    "loops": 32,
+    "time": 6.185185194015503
+  },
+  "dual_annealing": {
+    "last_residual": 0.02216192419896799,
+    "loops": 201,
+    "time": 32.40411591529846
+  }
+}

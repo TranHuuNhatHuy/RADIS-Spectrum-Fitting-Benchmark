@@ -1,0 +1,13 @@
+{
+  "fileName": "CO2-1-1900-2300-1.01325-t300-v300-r300-p1.spec",
+  "fitting-pipeline": [
+    "large": True,
+    "LTE": True,
+    "method": "leastsq",
+    "cutoff": 1e-25,
+    "offset": "-0.2 nm",
+  ]
+  "best_residual": 0.516762,
+  "time": 51.994637,
+  "loops": 76
+}

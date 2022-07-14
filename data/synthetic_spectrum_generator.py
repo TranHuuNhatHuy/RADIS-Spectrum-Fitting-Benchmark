@@ -137,10 +137,10 @@ def synthSpectrumGenerate():
             "Trot": Trot,
         },
         "pipeline": {
-            "method": "leastsq",
-            "fit_var": "radiance",
-            "normalize": True,
-            "max_loop": 100,
+            "method": method,
+            "fit_var": fit_var,
+            "normalize": normalize,
+            "max_loop": max_loop,
         }
     }
     # Remove temperatures that does not include in the fitting process (such as when LTE)

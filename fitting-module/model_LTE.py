@@ -17,7 +17,7 @@ from radis.tools.database import load_spec
 # General model for LTE spectra. This model will be heavily modified during
 # benchmarking process to see which one works best.
 
-def residual_LTE(params, conditions, s_data, residuals, log_fitvals, verbose = True):
+def residual_LTE(params, conditions, s_data, sf, log, verbose = True):
     """A cost function that calculates an LTE spectrum based on the
     initial conditions and values of fit parameters, then returning a 1D
     array (if least-squared method is used) or a scalar (if other methods
@@ -33,15 +33,16 @@ def residual_LTE(params, conditions, s_data, residuals, log_fitvals, verbose = T
         model spectra.
     s_data: Spectrum
         data spectrum, loaded from the directory stated in JSON file.
+    sf: SpectrumFactory
+        the SpectrumFactory object used for modeling spectra, generated
+        before the minimize loop occurs.
+    log: list
+        a two-dimensional list, containing fitting history. log[0] has
+        residual history, and log[1] has fitting values. This is for the
+        fitting result reporting only.
 
     Other parameters
-    ----------
-    residuals : list
-        the list containing residual history as the minimizer runs. This
-        is for fitting result reporting only.
-    log_filvals : list
-        the list containing fitting values of all fit parameters as the
-        minimizer runs. This is for fitting result reporting only.
+    ----------------
     verbose : bool
         by default, True, will print out information of fitting process.
 
@@ -52,60 +53,56 @@ def residual_LTE(params, conditions, s_data, residuals, log_fitvals, verbose = T
 
     """
 
+    # GENERATE LTE SPECTRUM BASED ON THOSE PARAMETERS
+
     # Load initial values of fit parameters
+    kwargs = {}
     for param in params:
-        kwargs = {param : float(params[param])}
+        kwargs[param] = float(params[param])
     
-    # Load conditions (fixed parameters)
-    conds = conditions.copy()
-    slit_info = conds.pop("slit")      # Hide the slit info first, will use it later below
-    fileName = conds.pop("fileName")
-    conds["name"] = fileName           # Because calc_spectrum() requires "name" parameter
-    kwargs = {**kwargs, **conds}
-    fit_var = s_data.get_vars()[0]
+    # Spectrum calculation
+    s_model = sf.eq_spectrum(**kwargs)
 
-    # Generate LTE spectrum based on those parameters
-    s_model = calc_spectrum(
-        **kwargs,
-        cutoff = 1e-25,
-        wstep = 0.001,
-        truncation = 1,
-        verbose = False,
-        warnings = "ignore"
-    )
 
-    # Further refine the modeled spectrum before calculating diff
+    # FURTHER REFINE THE MODELED SPECTRUM BEFORE CALCULATING DIFF
     
-    slit, slit_unit = slit_info.split()         # Now get the slit info
+    pipeline = conditions["pipeline"]
+    modeling = conditions["modeling"]
 
-    s_model = (
-        s_model
-        .apply_slit(float(slit), slit_unit)     # Simulate slit
-        .take(fit_var)
-        .normalize()                            # Normalize
-        # .resample(                              # Downgrade to data spectrum's resolution
-        #     s_data, 
-        #     energy_threshold = 2e-2
-        # )
-    )
+    # Apply slit
+    if "slit" in modeling:
+        slit, slit_unit = modeling["slit"].split()
+        s_model = s_model.apply_slit(float(slit), slit_unit)
 
+    # Take spectral quantity
+    fit_var = pipeline["fit_var"]
+    s_model = s_model.take(fit_var)
+
+    # Apply normalization
+    if "normalize" in pipeline:
+        if pipeline["normalize"]:
+            s_model = s_model.normalize()
+
+
+    # ACQUIRE AND RETURN DIFF, ALSO LOG FITTING HISTORY
 
     # Acquire diff
     residual = get_residual(
-        s_model, 
         s_data, 
+        s_model, 
         fit_var, 
         norm = "L2",
         ignore_nan = "True"
     )
     
-    residuals.append(residual)                  # Log the current residual
+    # Log the current residual
+    log["residual"].append(residual)
     
+    # Log the current fitting values of fit parameters
     current_fitvals = []
     for param in params:
         current_fitvals.append(float(params[param]))
-    log_fitvals.append(current_fitvals)         # Log the current fitting values of fit parameters
-
+    log["fit_vals"].append(current_fitvals)
 
     # Print information of fitting process
     if verbose:

@@ -16,6 +16,7 @@ the algorithm and other specific settings will be stored as a model file in
 
 """
 
+from logging import warning
 from math import nan
 import numpy as np
 import time
@@ -55,7 +56,7 @@ def get_JSON(
     Other Parameters
     ----------------
     verbose: bool, or ``2``
-        use ``2`` for high verbose level.
+        by default, True, print details about the fitting progress.
 
     Returns
     -------
@@ -66,78 +67,135 @@ def get_JSON(
 
     """
 
-    # Log the input file
+    # LOG THE INPUT FILE AND INITIATE PARAMETERS OBJECT FROM IT
+
     with open("/".join(["../data", input_file]), 'r') as f:
 
         conditions = json.load(f)         # Load JSON as dict
-        params = Parameters()       # Initiate Parameters object
+        params = Parameters()             # Initiate Parameters object
 
         # Get fit parameters first and load them into params
 
         fit_params = conditions.pop("fit")
-        dhb = 1000              # Default half-bound for fit temperatures, in case user don't specify bounds
+        dhb = 500              # Default half-bound for fit temperatures, in case user don't specify bounds
 
+        for param in fit_params:
 
-        if "Tgas" in fit_params:
-            Tgas = fit_params.pop("Tgas")
-            params.add("Tgas", value = Tgas)
+            fit_val = fit_params[param]
 
-            bound_Tgas = [(Tgas - dhb) if Tgas > dhb else 0, Tgas + dhb] # Default fitting bounds
-            if "bound_Tgas" in fit_params:
-                bound_Tgas = fit_params.pop("bound_Tgas") # Update user-defined bounds
-            params["Tgas"].set(min = bound_Tgas[0], max = bound_Tgas[1])    # Update params attributes
+            if (type(fit_val) == int) or (type(fit_val) == float):     # User states an initial value
+                print(f"User stated an initial fit value {param} = {fit_val}.")
+                init_val = fit_val
+                if param == "mole_fraction":
+                    init_bound = [0, 1]
+                else:
+                    init_bound = [
+                        (init_val - dhb) if init_val > dhb else 0, 
+                        init_val + dhb
+                    ]
 
+            elif (type(fit_val) == list) or (type(fit_val) == tuple):  # User states a bounding range
+                print(f"User stated an initial bounding range value {param} = {fit_val}.")
+                init_bound = [fit_val[0], fit_val[1]]
+                init_val = fit_val[0] + (fit_val[1] - fit_val[0]) / 2
 
-        if "Tvib" in fit_params:
-            Tvib = fit_params.pop("Tvib")
-            params.add("Tvib", value = Tvib)
+            #elif (type(fit_val) == str):                              # User states an equation
+                # print(f"User stated a relative equation for {param} = {fit_val}.")
+                # Will be updated later
 
-            bound_Tvib = [(Tvib - dhb) if Tvib > dhb else 0, Tvib + dhb] # Default bounds
-            if "bound_Tvib" in fit_params:
-                bound_Tvib = fit_params.pop("bound_Tvib") # Update user-defined bounds
-            params["Tvib"].set(min = bound_Tvib[0], max = bound_Tvib[1])    # Update params attributes
+            else:
+                print(f"Unable to recognize initial statement of {param}.")
+                break
 
+            params.add(                              # Add fit parameter into Parameters object
+                param, 
+                value = init_val,
+                min = init_bound[0],
+                max = init_bound[1]
+            )
 
-        if "Trot" in fit_params:
-            Trot = fit_params.pop("Trot")
-            params.add("Trot", value = Trot)
-
-            bound_Trot = [(Trot - dhb) if Trot > dhb else 0, Trot + dhb] # Default bounds
-            if "bound_Trot" in fit_params:
-                bound_Trot = fit_params.pop("bound_Trot") # Update user-defined bounds
-            params["Trot"].set(min = bound_Trot[0], max = bound_Trot[1])    # Update params attributes
-
-
-        if "mole_fraction" in fit_params:
-            mole_fraction = fit_params.pop("mole_fraction")
-            params.add("mole_fraction", value = mole_fraction)
-
-            bound_molefrac = [0, 1] # Default bounds
-            if "bound_mole_fraction" in fit_params:
-                bound_molefrac = fit_params.pop("bound_mole_fraction") # Update user-defined bounds
-            params["mole_fraction"].set(min = bound_molefrac[0], max = bound_molefrac[1])    # Update params attributes
-
-        
         # Return the remaining dict and the Parameters
 
         return conditions, params
 
 
-def spectrum_refinement(s_data, pipeline) -> Spectrum:
+def spectrum_refinement(s_data, conditions, verbose = True) -> Union[Spectrum, dict]:
     """Receive an experimental spectrum and further refine it according to the provided pipeline.
     Refinement process includes extracting the desired spectrum quantity, removing NaN values,
-    and other additional convolutions. Finally, a refined Spectrum object is returned.
+    and other additional convolutions. Finally, a refined Spectrum object is returned, along with
+    the original condition.
 
     Parameters
     ----------
     s_data : Spectrum
         experimental spectrum loaded from the path given in input JSON file.
+    conditions : dict
+        a Dictionary containing all ground-truth information, and also spectrum refinements or
+        convolutions (desired spectrum quantity, normalization, etc.), as well as fitting process
+        (max loop allowed, terminal tolerance, etc.).
 
+    Other parameters
+    ----------------
+    verbose : bool
+        by default, True, print details about the fitting progress.
+
+    Returns
+    -------
+    s_refined : Spectrum
+        the refined spectrum.
+    conditions : dict
+        the input conditions that might have been added fit_var (in case user didn't).
     
     """
 
+    # Extract spectrum quantity
 
-def fit_spectrum(input_file, method, verbose = True) -> Union[Spectrum, MinimizerResult]:
+    pipeline = conditions["pipeline"]
+
+    if "fit_var" in pipeline:
+        fit_var = pipeline["fit_var"]   # Acquire the stated quantity
+    else:
+        fit_var = s_data.get_vars()[0]                  # If not stated, take first quantity
+        conditions["pipeline"]["fit_var"] = fit_var     # And add to the dict
+
+    s_data_wav, s_data_val = s_data.get(fit_var)
+
+    if verbose:
+        print(f"Acquired spectral quantity \'{fit_var}\' from the spectrum.")
+
+    # Remove NaN values. A wise man once said, "Nan is good but only in India"
+
+    s_data_mtr = np.vstack((s_data_wav, s_data_val))
+    s_data_mtr = s_data_mtr[:, ~np.isnan(s_data_mtr).any(axis = 0)]     # Purge NaN pairs
+
+    if verbose:
+        print(f"NaN values successfully purged.")           
+
+    # Recreate the data spectrum with the spectral quantity
+
+    s_refined = Spectrum(
+        {
+            fit_var : (s_data_mtr[0], s_data_mtr[1])
+        },
+        wunit = conditions["wunit"],
+        units = {
+            fit_var : s_data.units[fit_var]
+        }
+    ).take(fit_var).sort()
+
+    # Further refinement
+
+    if "normalize" in pipeline:
+        if pipeline["normalize"]:
+            s_refined = s_refined.normalize()
+            if verbose:
+                print("Normalization applied.")
+
+
+    return s_refined, conditions
+
+
+def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult, dict]:
     """Fit an experimental spectrum (from here referred as "data spectrum") with a modeled one,
     then derive the fit results. Data spectrum is loaded from the path stated in the JSON file,
     while model spectrum is generated based on the conditions stated in the JSON file, too.
@@ -160,20 +218,28 @@ def fit_spectrum(input_file, method, verbose = True) -> Union[Spectrum, Minimize
         visualization of the best fit results obtained, as a spectrum.
     best_fit: MinimizerResult
         best fit results, output of LMFIT MinimizeResult.
+    log: dict
+        a Dictionary storing runtime log of the fitting process that are 
+        not quite covered by the Minimizer, including: residual and fit 
+        values after each fitting loop, and total time elapsed.
 
     """
 
     begin = time.time()             # Start the fitting time counter
 
-    
     # Load data from JSON file, then create a Parameters object
     conditions, params = get_JSON(input_file)
 
+
+    # ACQUIRE AND REFINE EXPERIMENTAL SPECTRUM s_data
+
     # Get s_data spectrum from the path stated in acquired JSON data
+
+    fileName = conditions.pop("fileName")
     spec_path = "/".join([
         "..",
         "data/LTE/spectrum",
-        conditions["fileName"]
+        fileName
     ])
 
     s_data = (
@@ -188,73 +254,70 @@ def fit_spectrum(input_file, method, verbose = True) -> Union[Spectrum, Minimize
     if verbose:
         end_exp_load = time.time()
         time_exp_load = end_exp_load - begin
-        print(f"\nSuccessfully retrieved the experimental data in {time_exp_load}s.")
-
+        print(f"\nSuccessfully retrieved the experimental data in {time_exp_load}s.\n")
 
     # Further refine the data spectrum before calculating diff
-    fit_var = s_data.get_vars()[0]
-    print(f"Original fit_var: {fit_var}")
-    s_data_wav, s_data_val = s_data.get(fit_var)
 
-    # A wise man once said, "Nan is good but only in India"
-    s_data_mtr = np.vstack((s_data_wav, s_data_val))
-
-    # Purge wav-val pairs containing NaN values.
-    s_data_mtr = s_data_mtr[:, ~np.isnan(s_data_mtr).any(axis = 0)]           
-
-    # Recreate the data spectrum
-    s_data = Spectrum(
-        {
-            fit_var : (s_data_mtr[0], s_data_mtr[1])
-        },
-        wunit = conditions["wunit"],
-        units = {
-            fit_var : s_data.units[fit_var]
-        }
-    )
-
-
-    # Further refinement process
-
-    s_data = (
-        s_data
-        .take(fit_var)
-        .sort()
-    )
-
-    if 
+    s_data, conditions = spectrum_refinement(s_data, conditions)
+    pipeline = conditions["pipeline"]
+    modeling = conditions["modeling"]
+    fit_var = pipeline["fit_var"]
 
     if verbose:
         end_exp_refine = time.time()
         time_exp_refine = end_exp_refine - end_exp_load
-        s_data.plot(show = True)
-        print(f"\nSuccessfully refined the experimental data in {time_exp_refine}s.")
+        s_data.plot(show = False)
+        print(f"Successfully refined the experimental data in {time_exp_refine}s.")
+    
 
+    # PRE-MINIMIZATION SETUP
+    
+    # Create a Spectrum Factory object for modeling spectra
 
-    # Decide the type of model - LTE or Non-LTE.
-    # For now it's just for LTE spectra. Non-LTE will be updated soon.
+    kwargs = {}
+    for cond in conditions:
+        if (cond != "pipeline") and (cond != "modeling"):
+            kwargs[cond] = conditions[cond]
+    
+    sf = SpectrumFactory(
+        **kwargs,
+        verbose = False,
+        warnings = "ignore"
+    )
+    sf.load_databank("HITRAN-" + conditions["molecule"])
 
+    # Decide the type of model - LTE or Non-LTE
     LTE = True                                         # LTE == True means it's LTE
     if ("Trot" in params) or ("Tvib" in params):
         LTE = False                                    # LTE == False means it's non-LTE
     
-    # Determine fitting method, either stated by user or "leastsq" by default
-    #if "method" in conditions:
-    #    method = conditions["method"]   # User-defined
-    #else:
-    #    method = "leastsq"              # By default
+    # Determine fitting method, either stated by user or "lbfgsb" by default
+    if "method" in pipeline:
+        method = pipeline["method"]     # User-defined
+    else:
+        method = "leastsq"              # By default
 
-    # Additional fitting conditions for the minimizer
+    # Determine additional fitting conditions for the minimizer
+
     fit_kws = {
-        'max_nfev': 200,                # Maximum amount of fitting loops allowed
-        'tol': 1e-10
+        'max_nfev': pipeline["max_loop"] if "max_loop" in pipeline else 200,
     }
 
-    # Prepare fitting log
-    residuals = []
-    log_fitvals = []
+    if "tol" in pipeline:
+        if pipeline["method"] == "lbfgsb":
+            fit_kws["tol"] = pipeline["tol"]
+        else:
+            print("\"tol\" parameter spotted but \"method\" is not \"lbfgsb\"!")
 
-    # Commence the fitting process
+    # Prepare fitting log
+    log = {
+        "residual": [],
+        "fit_vals": [],
+        "time_fitting": 0
+    }
+
+
+    # COMMENCE THE FITTING PROCESS
 
     # For LTE spectra
     if LTE:
@@ -263,7 +326,7 @@ def fit_spectrum(input_file, method, verbose = True) -> Union[Spectrum, Minimize
             residual_LTE, 
             params, 
             method = method, 
-            args = [conditions, s_data, residuals, log_fitvals], 
+            args = [conditions, s_data, sf, log], 
             **fit_kws
         )
 
@@ -274,128 +337,102 @@ def fit_spectrum(input_file, method, verbose = True) -> Union[Spectrum, Minimize
             residual_NonLTE, 
             params, 
             method = method, 
-            args = [conditions, s_data, residuals, log_fitvals], 
+            args = [conditions, s_data, sf, log], 
             **fit_kws
         )
 
-    
     if verbose:
         end_fitting = time.time()
         time_fitting = end_fitting - end_exp_refine
         print(f"\nSuccesfully finished the fitting process in {time_fitting}s.")
+        log["time_fitting"] = time_fitting
 
 
-    # Display result
-    print(fit_report(result))
+    # POST-MINIMIZATION REPORT
+
+    print(fit_report(result))       # Report the fitting result
 
     if verbose:
+
+        # REGENERATE THE BEST-FIT SPECTRUM, AS A RESULT FROM THE MINIMIZER
+
         # Load initial values of fit parameters
         for name, param in result.params.items():
             fit_show = {name : float(param.value)}
-        
-        # Load conditions (fixed parameters)
-
-        slit_info = conditions.pop("slit")      # Because calc_spectrum() does not support slit parameters this way
-        slit, slit_unit = slit_info.split()     # But it should be this way instead.
-
-        fileName = conditions.pop("fileName")   # Because calc_spectrum() does not have "fileName" parameter
-        conditions["name"] = "best_fit"         # But it only has "name".
-        
-        fit_show = {**fit_show, **conditions}
+        fit_show["name"] = "best_fit"
 
         # Generate best fitted spectrum result
+        if LTE:
+            s_result = sf.eq_spectrum(**fit_show)
+        else:
+            s_result = sf.non_eq_spectrum(**fit_show)
 
-        s_result = calc_spectrum(
-            **fit_show,
-            cutoff = 1e-25,
-            wstep = 0.001,
-            truncation = 1,
-            verbose = False,
-            warnings = "ignore"
-        )
-        s_result = (
-            s_result
-            .apply_slit(float(slit), slit_unit)     # Simulate slit
-            .take(fit_var)
-            .normalize()                            # Normalize
-            # .resample(                              # Downgrade to data spectrum's resolution
-            #     s_data, 
-            #     energy_threshold = 2e-2
-            # )
-        )
+        # Apply slit
+        if "slit" in modeling:
+            slit, slit_unit = modeling["slit"].split()
+            s_result = s_result.apply_slit(float(slit), slit_unit)
 
-        # Plot the difference between the two
-        fig_loc = f"../data/LTE/result/{fileName}/method_comparison/plot_diff/{method}.png"
+        # Take spectral quantity
+        s_result = s_result.take(fit_var)
+
+        # Apply normalization
+        if "normalize" in pipeline:
+            if pipeline["normalize"]:
+                s_result = s_result.normalize()
+
+
+        # PLOT THE DIFFERENCE BETWEEN THE TWO
+        specName = fileName.replace(".spec", "")
+        fig_loc = f"../data/LTE/result/{specName}/best_fit/{specName}.png"
         plot_diff(
             s_data, 
             s_result, 
             fit_var, 
             method=['diff', 'ratio'], 
-            show = True,
-            #save = fig_loc
+            show = False,
+            save = fig_loc
         )
 
-    return s_result, result, residuals, time_fitting
+    return s_result, result, log, pipeline
 
 
 
 if __name__ == "__main__":
 
-    # bmSpectrum = "synth-CO-1-1800-2300-cm-1-P3-t1500-v-r-mf0.1-p1-sl1nm"
-    # bmSpectrum = "CO_Tgas1500K_mole_fraction0.01"
-    bmSpectrum = "CO2_measured_spectrum_4-5um"
+    spec_list = [
+        #"CO2_measured_spectrum_4-5um",                                      # 0
+        "synth-CO-1-1800-2300-cm-1-P3-t1500-v-r-mf0.1-p1-sl1nm",            # 1
+        "synth-CO2-1-500-1100-cm-1-P2-t900-v-r-mf0.5-p1-sl1nm",             # 2
+        "synth-CO2-1-500-3000-cm-1-P93-t740-v-r-mf0.96-p1-sl1nm",           # 3
+        "synth-CO2-1-3300-3700-cm-1-P0.005-t3000-v-r-mf0.01-p1-sl1.4nm",    # 4
+        "synth-H2O-1-1000-2500-cm-1-P0.5-t1500-v-r-mf0.5-p1-sl1nm",         # 5
+        "synth-NH3-1-500-2000-cm-1-P10-t1000-v-r-mf0.01-p1-sl1nm",          # 6
+        "synth-O2-1-7500-8000-cm-1-P1.01325-t298.15-v-r-mf0.21-p1-sl1nm",   # 7
+    ]
 
-    input_path = f"LTE/ground-truth/{bmSpectrum}.json"
+    for i in range(len(spec_list)):
+        input_path = f"LTE/ground-truth/{spec_list[i]}.json"
+        _, result, log, pipeline = fit_spectrum(input_path)
+        json_data = {
+            "fileName": f"{spec_list[i]}.spec",
+            "pipeline": {
+                "method": pipeline["method"],
+	            "fit_var": "radiance",
+	            "normalize": pipeline["normalize"],
+	            "max_loop": 100
+            },
+            "result": {
+                "last_residual": log["residual"][-1],
+                "loops": result.nfev,
+                "time": log["time_fitting"]
+            }
+        }
+        
+        with open(f"../data/LTE/result/{spec_list[i]}/best_fit/pipeline.json", 'w') as f:
+            json.dump(json_data, f, indent = 2)
+            print("JSON file successfully created.")
 
-    #fit_spectrum(input_path, "leastsq")
-
-    # methods = [
-    #     "leastsq",
-    #     "least_squares",
-    #     "differential_evolutions",
-    #     "brute",
-    #     "basinhopping",
-    #     "ampgo",
-    #     "nelder",
-    #     "lbfgsb",
-    #     "powell",
-    #     "cg",
-    #     "cobyla",
-    #     "bfgs",
-    #     "tnc",
-    #     "trust-constr",
-    #     "slsqp",
-    #     "shgo",
-    #     "dual_annealing"
-    # ]
-
-    # json_data = {
-    #     "fileName": f"{bmSpectrum}.spec",
-    #     "fitting-pipeline": {
-    #         "LTE": True,
-    #         "normalization": True,
-    #         "cutoff": 1e-25,
-    #         "offset": "-0.2 nm",
-    #         "wstep": 0.001,
-    #         "truncation": 1,
-    #         "energy_threshold": 2e-2
-    #     }
-    # }
-
-    # for meth in methods:    
-    #     _, result, residuals, time_fitting = fit_spectrum(input_path, meth)
-    #     json_data[meth] = {
-    #         "last_residual": residuals[-1],
-    #         "loops": result.nfev,
-    #         "time": time_fitting
-    #     }
-    #     with open(f"../data/LTE/result/{bmSpectrum}.spec/method_comparison/residual_log/{meth}.txt", 'w') as f:
-    #         for resi in residuals:
-    #             f.write(f"{resi}\n")
-    #         f.close()        
-
-    # with open("../data/LTE/result/CO2_measured_spectrum_4-5um.spec/method_comparison/method_comparison.txt", 'w') as f:
-    #     json.dump(json_data, f, indent = 2)
-    #     print("JSON file successfully created.")
-
-    fit_spectrum(input_path, "lbfgsb")
+        with open(f"../data/LTE/result/{spec_list[i]}/best_fit/log_residuals.txt", 'w') as f:
+            for resi in log["residual"]:
+                f.write(f"{resi}\n")
+            f.close()

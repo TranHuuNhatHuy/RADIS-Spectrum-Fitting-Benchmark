@@ -1,0 +1,14 @@
+{
+  "fileName": "synth-CO2-1-3300-3700-cm-1-P0.005-t3000-v-r-mf0.01-p1-sl1.4nm.spec",
+  "pipeline": {
+    "method": "leastsq",
+    "fit_var": "radiance",
+    "normalize": false,
+    "max_loop": 100
+  },
+  "result": {
+    "last_residual": 3.791768677574912e-10,
+    "loops": 20,
+    "time": 2.091062068939209
+  }
+}

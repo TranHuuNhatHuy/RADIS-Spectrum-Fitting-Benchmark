@@ -1,0 +1,14 @@
+{
+  "fileName": "synth-CO-1-1800-2300-cm-1-P3-t1500-v-r-mf0.1-p1-sl1nm.spec",
+  "pipeline": {
+    "method": "lbfgsb",
+    "fit_var": "radiance",
+    "normalize": false,
+    "max_loop": 100
+  },
+  "result": {
+    "last_residual": 0.00017167388303879384,
+    "loops": 6,
+    "time": 4.120845317840576
+  }
+}

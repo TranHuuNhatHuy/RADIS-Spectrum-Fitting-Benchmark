@@ -1,0 +1,14 @@
+{
+  "fileName": "synth-CO2-1-500-3000-cm-1-P93-t740-v-r-mf0.96-p1-sl1nm.spec",
+  "pipeline": {
+    "method": "leastsq",
+    "fit_var": "radiance",
+    "normalize": false,
+    "max_loop": 100
+  },
+  "result": {
+    "last_residual": 3.740447031842009e-06,
+    "loops": 17,
+    "time": 2.860633611679077
+  }
+}

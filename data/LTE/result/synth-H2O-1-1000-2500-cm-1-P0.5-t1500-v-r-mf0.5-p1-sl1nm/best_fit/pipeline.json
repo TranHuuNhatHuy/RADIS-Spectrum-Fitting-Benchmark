@@ -1,0 +1,14 @@
+{
+  "fileName": "synth-H2O-1-1000-2500-cm-1-P0.5-t1500-v-r-mf0.5-p1-sl1nm.spec",
+  "pipeline": {
+    "method": "leastsq",
+    "fit_var": "radiance",
+    "normalize": true,
+    "max_loop": 100
+  },
+  "result": {
+    "last_residual": 0.0004248772443935752,
+    "loops": 14,
+    "time": 1.3467423915863037
+  }
+}

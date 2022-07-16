@@ -1,0 +1,14 @@
+{
+  "fileName": "synth-CO2-1-500-1100-cm-1-P2-t900-v-r-mf0.5-p1-sl1nm.spec",
+  "pipeline": {
+    "method": "lbfgsb",
+    "fit_var": "radiance",
+    "normalize": false,
+    "max_loop": 100
+  },
+  "result": {
+    "last_residual": 5.1063458825920785e-06,
+    "loops": 8,
+    "time": 0.9120438098907471
+  }
+}

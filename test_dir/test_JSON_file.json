@@ -1,0 +1,24 @@
+{
+  "fileName": "synthetic_CO2_Tgas=740.spec",
+  "molecule": "CO2",
+  "isotope": "1",
+  "wmin": 600,
+  "wmax": 800,
+  "wunit": "cm-1",
+  "pressure": 93,
+  "mole_fraction": 0.96,
+  "path_length": 1,
+  "fit": {
+    "Tgas": 1000
+  },
+  "pipeline": {
+    "method": "leastsq",
+    "fit_var": "radiance",
+    "normalize": false,
+    "max_loop": 100
+  },
+  "modeling": {
+    "offset": "-0.2 nm",
+    "slit": "1 nm"
+  }
+}

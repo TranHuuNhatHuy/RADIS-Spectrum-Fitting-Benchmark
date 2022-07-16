@@ -2,20 +2,24 @@
   "fileName": "synth-H2O-1-1000-2500-cm-1-P0.5-t1500-v-r-mf0.5-p1-sl1nm.spec",
   "molecule": "H2O",
   "isotope": "1",
-  "wmin": 1000,
-  "wmax": 2500,
+  "wmin": 1525,
+  "wmax": 1550,
   "wunit": "cm-1",
   "pressure": 0.5,
   "mole_fraction": 0.5,
   "path_length": 1,
-  "slit": "1 nm",
   "fit": {
-    "Tgas": 1500
+    "Tgas": [1000, 3000]
   },
   "pipeline": {
     "method": "leastsq",
     "fit_var": "radiance",
     "normalize": true,
-    "max_loop": 100
+    "max_loop": 100,
+    "tol": 1e-10
+  },
+  "modeling": {
+
+    "slit": "1 nm"
   }
 }

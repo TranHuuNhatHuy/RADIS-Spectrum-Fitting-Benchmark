@@ -26,6 +26,7 @@ import os
 import matplotlib.pyplot as plt
 from os.path import join
 from typing import Union
+from pathlib import Path
 
 from radis import calc_spectrum, plot_diff, Spectrum, SpectrumFactory, experimental_spectrum, calculated_spectrum
 from lmfit import minimize, Parameters, fit_report
@@ -33,8 +34,8 @@ from lmfit.minimizer import MinimizerResult
 from radis.tools.database import load_spec
 
 # Load models
-from model_LTE import residual_LTE
-from model_nonLTE import residual_NonLTE
+from .model_LTE import residual_LTE
+from .model_nonLTE import residual_NonLTE
 
 
 
@@ -69,7 +70,7 @@ def get_JSON(
 
     # LOG THE INPUT FILE AND INITIATE PARAMETERS OBJECT FROM IT
 
-    with open("/".join(["../data", input_file]), 'r') as f:
+    with open(input_file, 'r') as f:
 
         conditions = json.load(f)         # Load JSON as dict
         params = Parameters()             # Initiate Parameters object
@@ -227,21 +228,23 @@ def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult,
 
     begin = time.time()             # Start the fitting time counter
 
+    
+    # ACQUIRE AND REFINE EXPERIMENTAL SPECTRUM s_data
+
     # Load data from JSON file, then create a Parameters object
     conditions, params = get_JSON(input_file)
-
-
-    # ACQUIRE AND REFINE EXPERIMENTAL SPECTRUM s_data
 
     # Get s_data spectrum from the path stated in acquired JSON data, assuming the JSON
     # and the .spec files are in the same directory (it SHOULD be!)
 
     fileName = conditions.pop("fileName")
-    spec_path = input_file.replace(
-        "json",
-        "spec"
-    )
+    if (fileName[-5:] != ".spec"):             # fileName doesn't have ".spec" extension
+        print("Warning: fileName must include \".spec\" extension!")
 
+    input_dir = "/".join(input_file.split("/")[0 : -1]) + "/"
+    spec_path = input_dir + fileName
+
+    # Load and crop the experimental spectrum
     s_data = (
         load_spec(spec_path)
         .crop(
@@ -266,7 +269,7 @@ def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult,
     if verbose:
         end_exp_refine = time.time()
         time_exp_refine = end_exp_refine - end_exp_load
-        s_data.plot(show = False)
+        s_data.plot(show = True)
         print(f"Successfully refined the experimental data in {time_exp_refine}s.")
     
 
@@ -364,8 +367,10 @@ def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult,
         # Generate best fitted spectrum result
         if LTE:
             s_result = sf.eq_spectrum(**fit_show)
+            result_subfdr = "LTE"
         else:
             s_result = sf.non_eq_spectrum(**fit_show)
+            result_subfdr = "nonLTE"
 
         # Apply slit
         if "slit" in modeling:
@@ -381,58 +386,61 @@ def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult,
                 s_result = s_result.normalize()
 
 
-        # PLOT THE DIFFERENCE BETWEEN THE TWO
+        # PLOT THE DIFFERENCE BETWEEN THE TWO AND SAVE THE FIGURE 
         specName = fileName.replace(".spec", "")
-        fig_loc = f"../data/LTE/result/{specName}/best_fit/{specName}.png"
+        fig_loc = input_dir + specName + ".png"     # Save fig at same JSON/spec directory
         plot_diff(
             s_data, 
             s_result, 
             fit_var, 
             method=['diff', 'ratio'], 
-            show = False,
+            show = True,
             save = fig_loc
         )
 
-    return s_result, result, log, pipeline
+        if verbose:
+            print(f"\nComparison figure successfully saved at {fig_loc}")
+
+    return s_result, result, log
 
 
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
-    spec_list = [
-        #"CO2_measured_spectrum_4-5um",                                      # 0
-        "synth-CO-1-1800-2300-cm-1-P3-t1500-v-r-mf0.1-p1-sl1nm",            # 1
-        "synth-CO2-1-500-1100-cm-1-P2-t900-v-r-mf0.5-p1-sl1nm",             # 2
-        "synth-CO2-1-500-3000-cm-1-P93-t740-v-r-mf0.96-p1-sl1nm",           # 3
-        "synth-CO2-1-3300-3700-cm-1-P0.005-t3000-v-r-mf0.01-p1-sl1.4nm",    # 4
-        "synth-H2O-1-1000-2500-cm-1-P0.5-t1500-v-r-mf0.5-p1-sl1nm",         # 5
-        "synth-NH3-1-500-2000-cm-1-P10-t1000-v-r-mf0.01-p1-sl1nm",          # 6
-        "synth-O2-1-7500-8000-cm-1-P1.01325-t298.15-v-r-mf0.21-p1-sl1nm",   # 7
-    ]
+#     spec_list = [
+#         "CO2_measured_spectrum_4-5um",                                      # 0
+#         "synth-CO-1-1800-2300-cm-1-P3-t1500-v-r-mf0.1-p1-sl1nm",            # 1
+#         "synth-CO2-1-500-1100-cm-1-P2-t900-v-r-mf0.5-p1-sl1nm",             # 2
+#         "synth-CO2-1-500-3000-cm-1-P93-t740-v-r-mf0.96-p1-sl1nm",           # 3
+#         "synth-CO2-1-3300-3700-cm-1-P0.005-t3000-v-r-mf0.01-p1-sl1.4nm",    # 4
+#         "synth-H2O-1-1000-2500-cm-1-P0.5-t1500-v-r-mf0.5-p1-sl1nm",         # 5
+#         "synth-NH3-1-500-2000-cm-1-P10-t1000-v-r-mf0.01-p1-sl1nm",          # 6
+#         "synth-O2-1-7500-8000-cm-1-P1.01325-t298.15-v-r-mf0.21-p1-sl1nm",   # 7
+#     ]
 
-    for i in range(len(spec_list)):
-        input_path = f"../data/LTE/ground-truth/{spec_list[i]}.json"
-        _, result, log, pipeline = fit_spectrum(input_path)
-        json_data = {
-            "fileName": f"{spec_list[i]}.spec",
-            "pipeline": {
-                "method": pipeline["method"],
-	            "fit_var": "radiance",
-	            "normalize": pipeline["normalize"],
-	            "max_loop": 100
-            },
-            "result": {
-                "last_residual": log["residual"][-1],
-                "loops": result.nfev,
-                "time": log["time_fitting"]
-            }
-        }
+#     for i in range(len(spec_list)):
+#         input_path = f"../data/LTE/ground-truth/{spec_list[i]}.json"
+#         _, result, log, pipeline = fit_spectrum(input_path)
+#         json_data = {
+#             "fileName": f"{spec_list[i]}.spec",
+#             "pipeline": {
+#                 "method": pipeline["method"],
+# 	            "fit_var": "radiance",
+# 	            "normalize": pipeline["normalize"],
+# 	            "max_loop": 100
+#             },
+#             "result": {
+#                 "last_residual": log["residual"][-1],
+#                 "loops": result.nfev,
+#                 "time": log["time_fitting"]
+#             }
+#         }
         
-        with open(f"../data/LTE/result/{spec_list[i]}/best_fit/pipeline.json", 'w') as f:
-            json.dump(json_data, f, indent = 2)
-            print("JSON file successfully created.")
+#         with open(f"../data/LTE/result/{spec_list[i]}/best_fit/pipeline.json", 'w') as f:
+#             json.dump(json_data, f, indent = 2)
+#             print("JSON file successfully created.")
 
-        with open(f"../data/LTE/result/{spec_list[i]}/best_fit/log_residuals.txt", 'w') as f:
-            for resi in log["residual"]:
-                f.write(f"{resi}\n")
-            f.close()
+#         with open(f"../data/LTE/result/{spec_list[i]}/best_fit/log_residuals.txt", 'w') as f:
+#             for resi in log["residual"]:
+#                 f.write(f"{resi}\n")
+#             f.close()

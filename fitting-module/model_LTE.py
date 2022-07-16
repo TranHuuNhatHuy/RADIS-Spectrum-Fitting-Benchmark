@@ -19,9 +19,8 @@ from radis.tools.database import load_spec
 
 def residual_LTE(params, conditions, s_data, sf, log, verbose = True):
     """A cost function that calculates an LTE spectrum based on the
-    initial conditions and values of fit parameters, then returning a 1D
-    array (if least-squared method is used) or a scalar (if other methods
-    are used) containing the difference between it and data spectrum.
+    initial conditions and values of fit parameters, then returning a
+    scalar containing difference between experimental and data spectra.
 
     Parameters
     ----------
@@ -37,9 +36,9 @@ def residual_LTE(params, conditions, s_data, sf, log, verbose = True):
         the SpectrumFactory object used for modeling spectra, generated
         before the minimize loop occurs.
     log: list
-        a two-dimensional list, containing fitting history. log[0] has
-        residual history, and log[1] has fitting values. This is for the
-        fitting result reporting only.
+        a Dictionary storing runtime log of the fitting process that are 
+        not quite covered by the Minimizer, including: residual and fit 
+        values after each fitting loop, and total time elapsed.
 
     Other parameters
     ----------------

@@ -3,8 +3,8 @@
 
 RADIS Fitting Benchmarking Module
 
-This module is to conduct benchmarking process on spectra (LET or Non-LTE) with
-temperatures as fitting parameters.
+This module is to conduct benchmarking process on spectra (LTE or Non-LTE) with
+temperatures (and sometimes mole fraction) as fitting parameters.
 
 Fitting spectra are stored in ./data/<spectrum-type>/ground-truth, while their
 corresponding fitting results are stored in ./data/<spectrum-type>/result. All the
@@ -203,9 +203,9 @@ def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult,
     Parameters
     ----------
     input_file : str
-        path to the JSON input file from ./data/, will be changed when implementing
-        to RADIS codebase. For now the format is <spectrum-type>/ground-truth/<name>.json.
-        For example:: "LTE/ground-truth/CO2_measured_spectrum_4-5um.json"
+        path to the JSON input file from the directory containing this module, will be changed
+        when implementing to RADIS codebase. For now it will be something like this::
+        "../data/LTE/ground-truth/CO2_measured_spectrum_4-5um.json"
     
     Other parameters
     ----------
@@ -233,14 +233,14 @@ def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult,
 
     # ACQUIRE AND REFINE EXPERIMENTAL SPECTRUM s_data
 
-    # Get s_data spectrum from the path stated in acquired JSON data
+    # Get s_data spectrum from the path stated in acquired JSON data, assuming the JSON
+    # and the .spec files are in the same directory (it SHOULD be!)
 
     fileName = conditions.pop("fileName")
-    spec_path = "/".join([
-        "..",
-        "data/LTE/spectrum",
-        fileName
-    ])
+    spec_path = input_file.replace(
+        "json",
+        "spec"
+    )
 
     s_data = (
         load_spec(spec_path)
@@ -411,7 +411,7 @@ if __name__ == "__main__":
     ]
 
     for i in range(len(spec_list)):
-        input_path = f"LTE/ground-truth/{spec_list[i]}.json"
+        input_path = f"../data/LTE/ground-truth/{spec_list[i]}.json"
         _, result, log, pipeline = fit_spectrum(input_path)
         json_data = {
             "fileName": f"{spec_list[i]}.spec",

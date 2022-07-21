@@ -66,16 +66,21 @@ def residual_LTE(params, conditions, s_data, sf, log, verbose = True):
     # FURTHER REFINE THE MODELED SPECTRUM BEFORE CALCULATING DIFF
     
     pipeline = conditions["pipeline"]
-    modeling = conditions["modeling"]
+    model = conditions["model"]
 
     # Apply slit
-    if "slit" in modeling:
-        slit, slit_unit = modeling["slit"].split()
+    if "slit" in model:
+        slit, slit_unit = model["slit"].split()
         s_model = s_model.apply_slit(float(slit), slit_unit)
 
     # Take spectral quantity
     fit_var = pipeline["fit_var"]
     s_model = s_model.take(fit_var)
+
+    # Apply offset
+    if "offset" in model:
+        off_val, off_unit = model["offset"].split()
+        s_model = s_model.offset(float(off_val), off_unit)
 
     # Apply normalization
     if "normalize" in pipeline:
@@ -106,9 +111,8 @@ def residual_LTE(params, conditions, s_data, sf, log, verbose = True):
     # Print information of fitting process
     if verbose:
         for param in params:
-            print(f"\n{param} = {float(params[param])}")
-        print(f"Residual = {residual}\n")
-        #s_model.plot(show = True)
+            print(f"{param} = {float(params[param])}")
+        print(f"\nResidual = {residual}\n")
 
 
     return residual

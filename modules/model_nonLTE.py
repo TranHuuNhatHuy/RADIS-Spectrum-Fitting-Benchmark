@@ -14,8 +14,8 @@ from lmfit.minimizer import MinimizerResult
 from radis.test.utils import getTestFile
 from radis.tools.database import load_spec
 
-# General model for non-LTE spectra. This model will be heavily modified
-# during benchmarking process to see which one works best.
+# General model for non-LTE spectra. This model will be heavily modified during
+# benchmarking process to see which one works best.
 
 def residual_NonLTE(params, conditions, s_data, sf, log, verbose = True):
     """A cost function that calculates a non-LTE spectrum based on the
@@ -58,24 +58,38 @@ def residual_NonLTE(params, conditions, s_data, sf, log, verbose = True):
     kwargs = {}
     for param in params:
         kwargs[param] = float(params[param])
+
+    # Deal with the case of multiple Tvib temperatures
+    if "Tvib0" in kwargs:       # There is trace of a "Tvib fragmentation" before
+        Tvib = []
+        for kw in kwargs:
+            if "Tvib" in kw:                # Such as "Tvib0", "Tvib1" or so
+                Tvib.append(kwargs[kw])     # Bring them altogether, uwu
+                kwargs.pop(kw)              # Dispose the fragmented one in kwargs
+        kwargs["Tvib"] = tuple(Tvib)        # Finally, we have the tuple of Tvib
     
     # Spectrum calculation
-    s_model = sf.eq_spectrum(**kwargs)
+    s_model = sf.non_eq_spectrum(**kwargs)
 
 
     # FURTHER REFINE THE MODELED SPECTRUM BEFORE CALCULATING DIFF
     
     pipeline = conditions["pipeline"]
-    modeling = conditions["modeling"]
+    model = conditions["model"]
 
     # Apply slit
-    if "slit" in modeling:
-        slit, slit_unit = modeling["slit"].split()
+    if "slit" in model:
+        slit, slit_unit = model["slit"].split()
         s_model = s_model.apply_slit(float(slit), slit_unit)
 
     # Take spectral quantity
     fit_var = pipeline["fit_var"]
     s_model = s_model.take(fit_var)
+
+    # Apply offset
+    if "offset" in model:
+        off_val, off_unit = model["offset"].split()
+        s_model = s_model.offset(float(off_val), off_unit)
 
     # Apply normalization
     if "normalize" in pipeline:
@@ -106,9 +120,8 @@ def residual_NonLTE(params, conditions, s_data, sf, log, verbose = True):
     # Print information of fitting process
     if verbose:
         for param in params:
-            print(f"\n{param} = {float(params[param])}")
-        print(f"Residual = {residual}\n")
-        #s_model.plot(show = True)
+            print(f"{param} = {float(params[param])}")
+        print(f"\nResidual = {residual}\n")
 
 
     return residual

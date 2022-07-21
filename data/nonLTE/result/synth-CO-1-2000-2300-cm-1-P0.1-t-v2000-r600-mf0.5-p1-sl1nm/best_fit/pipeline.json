@@ -1,0 +1,15 @@
+{
+  "fileName": "synth-CO-1-2000-2300-cm-1-P0.1-t-v2000-r600-mf0.5-p1-sl1nm.spec",
+  "pipeline": {
+    "method": "lbfgsb",
+    "fit_var": "radiance",
+    "normalize": false,
+    "max_loop": 150,
+    "tol": 1e-10
+  },
+  "result": {
+    "last_residual": 2.2979250317688318e-05,
+    "loops": 39,
+    "time": 26.177774667739868
+  }
+}

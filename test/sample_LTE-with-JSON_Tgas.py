@@ -1,10 +1,16 @@
 # -*- coding: utf-8 -*-
 
 from modules.fitting_module import fit_spectrum
-import matplotlib.pyplot as plt
+from radis import load_spec
 
+
+# Get JSON file path (note that the experimental spectrum file MUST BE IN THE SAME FOLDER containing JSON file)
 JSON_path = "./test_dir/test_JSON_file.json"
-s_best, result, log = fit_spectrum(JSON_path)
+
+
+# Conduct the fitting process!
+s_best, result, log = fit_spectrum(input_file = JSON_path)
+
 
 # Now investigate the log
 

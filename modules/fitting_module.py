@@ -39,20 +39,21 @@ from .model_nonLTE import residual_NonLTE
 
 
 
-def get_JSON(
-    input_file,
+def get_conditions(
+    input_conditions,
     verbose = True,
 ) -> Union[dict, dict, Parameters]:
-    """Read the JSON file containing ground-truth information and fit parameters.
-    Return a dict parameter containing fixed conditions for spectrum calculation,
-    and an LMFIT.Parameters object that contains fit parameters for later use.
+    """Get the ground-truth information by reading from input - either a JSON file
+    or a dict parameter. Return a dict parameter containing fixed conditions for
+    spectrum calculation, and an LMFIT.Parameters object containing fit parameters.
 
     Parameters
     ----------
-    input_file : str
-        path to the JSON input file from ./data/, will be changed when implementing
-        to RADIS codebase. For now the format is <spectrum-type>/ground-truth/<name>.json.
-        For example:: "LTE/ground-truth/CO2_measured_spectrum_4-5um.json"
+    input_conditions : str or dict
+        If str, the code assumes this is path to the JSON input file from the script
+        calling it, for example:: "./test_dir/CO2_measured_spectrum_4-5um.json", and
+        then parses the JSON data as a dict.
+        If dict, the code just simply parses the dict, yeah, that simple.
 
     Other Parameters
     ----------------
@@ -68,56 +69,100 @@ def get_JSON(
 
     """
 
-    # LOG THE INPUT FILE AND INITIATE PARAMETERS OBJECT FROM IT
+    # LOG THE INPUT CONDITIONS (JSON OR DICT)
 
-    with open(input_file, 'r') as f:
+    if (type(input_conditions) == str):         # Must be a JSON path
+        
+        with open(input_conditions, 'r') as f:  # Load JSON as dict
+            conditions = json.load(f)
+            f.close()
 
-        conditions = json.load(f)         # Load JSON as dict
-        params = Parameters()             # Initiate Parameters object
+    elif (type(input_conditions) == dict):      # Must be just a dick
 
-        # Get fit parameters first and load them into params
+        conditions = input_conditions
 
-        fit_params = conditions.pop("fit")
-        dhb = 500              # Default half-bound for fit temperatures, in case user don't specify bounds
+    else:
 
-        for param in fit_params:
+        print(f"Input unrecognizable. Got type {type(input_conditions)}, expecting str or dict.")
 
-            fit_val = fit_params[param]
+    params = Parameters()                       # Initiate Parameters object
 
-            if (type(fit_val) == int) or (type(fit_val) == float):     # User states an initial value
-                print(f"User stated an initial fit value {param} = {fit_val}.")
-                init_val = fit_val
-                if param == "mole_fraction":
-                    init_bound = [0, 1]
-                else:
-                    init_bound = [
-                        (init_val - dhb) if init_val > dhb else 0, 
-                        init_val + dhb
-                    ]
+    # READ "fit" KEY AND LOAD IT INTO NEW PARAMETERS OBJECT
 
-            elif (type(fit_val) == list) or (type(fit_val) == tuple):  # User states a bounding range
-                print(f"User stated an initial bounding range value {param} = {fit_val}.")
-                init_bound = [fit_val[0], fit_val[1]]
-                init_val = fit_val[0] + (fit_val[1] - fit_val[0]) / 2
+    fit_params = conditions.pop("fit")
+    dhb = 500       # Default half-bound for fit temperatures, for cases user don't specify bounds
 
-            #elif (type(fit_val) == str):                              # User states an equation
-                # print(f"User stated a relative equation for {param} = {fit_val}.")
-                # Will be updated later
+    # Deal with "Tvib", especially if it has multiple temperatures
 
-            else:
-                print(f"Unable to recognize initial statement of {param}.")
-                break
+    if "Tvib" in fit_params:
 
-            params.add(                              # Add fit parameter into Parameters object
-                param, 
-                value = init_val,
-                min = init_bound[0],
-                max = init_bound[1]
+        Tvib = fit_params["Tvib"]
+
+        if (type(Tvib) == list) or (type(Tvib) == tuple):   # Multiple temps detected
+
+            # Split Tvib[] into Tvib0, Tvib1, Tvib2,... for later being put into Parameters
+            for i in range(len(Tvib)):
+                fit_params[f"Tvib{i}"] = Tvib[i]
+
+            # Destroy the original "Tvib" key
+            fit_params.pop("Tvib")
+
+    # Put every fit parameter into Parameters, with the default bounding range
+
+    for param in fit_params:
+
+        init_val = fit_params[param]
+
+        if (param == "mole_fraction"):
+            init_bound = [0, 1]
+        else:
+            init_bound = [
+                (init_val - dhb) if init_val > dhb else 0, 
+                init_val + dhb
+            ]
+
+        params.add(
+            param,
+            value = init_val,
+            min = init_bound[0],
+            max = init_bound[1]
+        )
+
+    # READ "bounds" KEY AND RE-ASSIGN DEFAULT BOUNDING RANGES WITH USER-DEFINED ONES
+
+    if ("bounds" in conditions):
+
+        bounds = conditions.pop("bounds")
+
+        # Deal with "Tvib", especially if it has multiple temperature-bounding ranges
+
+        if "Tvib" in bounds:
+
+            bound_Tvib = bounds["Tvib"]
+
+            if (len(bound_Tvib) > 1):           # Not sure if it's multiple ranges, or just 1 range with 2 ends
+                if (type(bound_Tvib[0]) in [list, tuple]):      # Now we sure it's multiple ranges
+
+                    # Split Tvib[] into Tvib0, Tvib1, Tvib2,... for later being put into Parameters
+                    for i in range(len(bound_Tvib)):
+                        bounds[f"Tvib{i}"] = bound_Tvib[i]
+
+                    # Destroy the original key
+                    bounds.pop("Tvib")
+
+        # Set user-defined bounding ranges
+        
+        for bound_param in bounds:
+
+            bound_val = bounds[bound_param]
+
+            params[bound_param].set(
+                min = bound_val[0],
+                max = bound_val[1]
             )
 
-        # Return the remaining dict and the Parameters
 
-        return conditions, params
+    return conditions, params
 
 
 def spectrum_refinement(s_data, conditions, verbose = True) -> Union[Spectrum, dict]:
@@ -149,12 +194,12 @@ def spectrum_refinement(s_data, conditions, verbose = True) -> Union[Spectrum, d
     
     """
 
-    # Extract spectrum quantity
-
+    # Extract spectrum 
+    
     pipeline = conditions["pipeline"]
 
     if "fit_var" in pipeline:
-        fit_var = pipeline["fit_var"]   # Acquire the stated quantity
+        fit_var = pipeline["fit_var"]                   # Acquire the stated quantity
     else:
         fit_var = s_data.get_vars()[0]                  # If not stated, take first quantity
         conditions["pipeline"]["fit_var"] = fit_var     # And add to the dict
@@ -178,7 +223,7 @@ def spectrum_refinement(s_data, conditions, verbose = True) -> Union[Spectrum, d
         {
             fit_var : (s_data_mtr[0], s_data_mtr[1])
         },
-        wunit = conditions["wunit"],
+        wunit = conditions["model"]["wunit"],
         units = {
             fit_var : s_data.units[fit_var]
         }
@@ -196,17 +241,36 @@ def spectrum_refinement(s_data, conditions, verbose = True) -> Union[Spectrum, d
     return s_refined, conditions
 
 
-def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult, dict]:
+def fit_spectrum( 
+    s_exp = None,
+    fit_params = None,
+    model = None,
+    pipeline = None,
+    bounds = None,
+    input_file = None,
+    verbose = True) -> Union[Spectrum, MinimizerResult, dict]:
     """Fit an experimental spectrum (from here referred as "data spectrum") with a modeled one,
     then derive the fit results. Data spectrum is loaded from the path stated in the JSON file,
     while model spectrum is generated based on the conditions stated in the JSON file, too.
 
     Parameters
     ----------
+    s_exp : Spectrum
+        a Spectrum object, containing the experimental spectrum.
+    fit_params : dict
+        a dict object, containing fit parameters and their initial values.
+    bounds : dict
+        a dict object, optional, containing bounding ranges of those fit parameters. If not stated,
+        all fit parameters will receive default bounding ranges.
+    model : dict
+        a dict object, containing experimental conditions and some additional convolutions for
+        modeling the spectrum.
+    pipeline : dict
+        a dict object, containing some preference properties of fitting process.
     input_file : str
-        path to the JSON input file from the directory containing this module, will be changed
-        when implementing to RADIS codebase. For now it will be something like this::
-        "../data/LTE/ground-truth/CO2_measured_spectrum_4-5um.json"
+        path to the JSON input file from the script calling it, by default, None. If this parameter
+        is defined, it means user uses JSON file for inputing everything, and so will discard all
+        other input parameters. For example:: "./test_dir/CO2_measured_spectrum_4-5um.json"
     
     Other parameters
     ----------
@@ -231,28 +295,64 @@ def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult,
     
     # ACQUIRE AND REFINE EXPERIMENTAL SPECTRUM s_data
 
-    # Load data from JSON file, then create a Parameters object
-    conditions, params = get_JSON(input_file)
+    if (input_file != None):        # The user uses JSON file
 
-    # Get s_data spectrum from the path stated in acquired JSON data, assuming the JSON
-    # and the .spec files are in the same directory (it SHOULD be!)
+        # Load data from JSON file, then create a Parameters object
+        conditions, params = get_conditions(input_file)
 
-    fileName = conditions.pop("fileName")
-    if (fileName[-5:] != ".spec"):             # fileName doesn't have ".spec" extension
-        print("Warning: fileName must include \".spec\" extension!")
+        # Get s_data spectrum from the path stated in acquired JSON data, assuming the JSON
+        # and the .spec files are in the same directory (it SHOULD be!)
 
-    input_dir = "/".join(input_file.split("/")[0 : -1]) + "/"
-    spec_path = input_dir + fileName
+        fileName = conditions["model"].pop("fileName")
+        if (fileName[-5:] != ".spec"):             # fileName doesn't have ".spec" extension
+            print("Warning: fileName must include \".spec\" extension!")
 
-    # Load and crop the experimental spectrum
-    s_data = (
-        load_spec(spec_path)
-        .crop(
-            conditions["wmin"], 
-            conditions["wmax"], 
-            conditions["wunit"]
+        input_dir = "/".join(input_file.split("/")[0 : -1]) + "/"
+        spec_path = input_dir + fileName
+
+        # Load and crop the experimental spectrum
+        s_data = (
+            load_spec(spec_path)
+            .crop(
+                conditions["model"]["wmin"], 
+                conditions["model"]["wmax"], 
+                conditions["model"]["wunit"]
+            )
         )
-    )
+
+    else:                           # The user states a bunch of dicts separately
+
+        # Merge all separated dict inputs into a single dict first
+
+        conditions = {
+            "model" : {},
+            "fit" : {},
+            "bounds" : {},
+            "pipeline" : {}
+        }
+
+        for key in model:
+            conditions["model"][key] = model[key]
+        for key in fit_params:
+            conditions["fit"][key] = fit_params[key]
+        if (bounds != None):
+            for key in bounds:
+                conditions["bounds"][key] = bounds[key]
+        for key in pipeline:
+            conditions["pipeline"][key] = pipeline[key]
+
+        # Load data, create Parameters object, from the above dict
+        conditions, params = get_conditions(conditions)
+
+        # Load and crop the experimental spectrum
+        s_data = (
+            s_exp
+            .crop(
+                conditions["model"]["wmin"], 
+                conditions["model"]["wmax"], 
+                conditions["model"]["wunit"]
+            )
+        )
 
     if verbose:
         end_exp_load = time.time()
@@ -262,8 +362,8 @@ def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult,
     # Further refine the data spectrum before calculating diff
 
     s_data, conditions = spectrum_refinement(s_data, conditions)
+
     pipeline = conditions["pipeline"]
-    modeling = conditions["modeling"]
     fit_var = pipeline["fit_var"]
 
     if verbose:
@@ -278,20 +378,27 @@ def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult,
     # Create a Spectrum Factory object for modeling spectra
 
     kwargs = {}
-    for cond in conditions:
-        if (cond != "pipeline") and (cond != "modeling"):
-            kwargs[cond] = conditions[cond]
+    model = conditions["model"]
+
+    # List of keys that are included in "model", but not included in SpectrumFactory syntax
+    ignore_keys = [
+        "slit",
+        "offset",
+    ]
+
+    for cond in model:
+        if cond not in ignore_keys:
+            kwargs[cond] = model[cond]
     
     sf = SpectrumFactory(
         **kwargs,
         verbose = False,
         warnings = "ignore"
     )
-    sf.load_databank("HITRAN-" + conditions["molecule"])
 
     # Decide the type of model - LTE or Non-LTE
     LTE = True                                         # LTE == True means it's LTE
-    if ("Trot" in params) or ("Tvib" in params):
+    if ("Tvib" in params) or ("Tvib0" in params):
         LTE = False                                    # LTE == False means it's non-LTE
     
     # Determine fitting method, either stated by user or "lbfgsb" by default
@@ -324,6 +431,12 @@ def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult,
 
     # For LTE spectra
     if LTE:
+
+        sf.fetch_databank(
+            "hitran",
+            load_columns = "equilibrium"
+        )
+
         print("\nCommence fitting process for LTE spectrum!")
         result = minimize(
             residual_LTE, 
@@ -335,6 +448,12 @@ def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult,
 
     # For non-LTE spectra
     if not(LTE):
+
+        sf.fetch_databank(
+            "hitemp",
+            load_columns = "noneq"
+        )
+
         print("\nCommence fitting process for non-LTE spectrum!")
         result = minimize(
             residual_NonLTE, 
@@ -360,25 +479,29 @@ def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult,
         # REGENERATE THE BEST-FIT SPECTRUM, AS A RESULT FROM THE MINIMIZER
 
         # Load initial values of fit parameters
+        fit_show = {}
         for name, param in result.params.items():
-            fit_show = {name : float(param.value)}
+            fit_show[name] = float(param.value)
         fit_show["name"] = "best_fit"
 
         # Generate best fitted spectrum result
         if LTE:
             s_result = sf.eq_spectrum(**fit_show)
-            result_subfdr = "LTE"
         else:
             s_result = sf.non_eq_spectrum(**fit_show)
-            result_subfdr = "nonLTE"
 
         # Apply slit
-        if "slit" in modeling:
-            slit, slit_unit = modeling["slit"].split()
+        if "slit" in model:
+            slit, slit_unit = model["slit"].split()
             s_result = s_result.apply_slit(float(slit), slit_unit)
 
         # Take spectral quantity
         s_result = s_result.take(fit_var)
+
+        # Apply offset
+        if "offset" in model:
+            off_val, off_unit = model["offset"].split()
+            s_result = s_result.offset(float(off_val), off_unit)
 
         # Apply normalization
         if "normalize" in pipeline:
@@ -387,19 +510,13 @@ def fit_spectrum(input_file, verbose = True) -> Union[Spectrum, MinimizerResult,
 
 
         # PLOT THE DIFFERENCE BETWEEN THE TWO AND SAVE THE FIGURE 
-        specName = fileName.replace(".spec", "")
-        fig_loc = input_dir + specName + ".png"     # Save fig at same JSON/spec directory
         plot_diff(
             s_data, 
             s_result, 
             fit_var, 
             method=['diff', 'ratio'], 
             show = True,
-            save = fig_loc
         )
-
-        if verbose:
-            print(f"\nComparison figure successfully saved at {fig_loc}")
 
     return s_result, result, log
 

@@ -393,7 +393,12 @@ def fit_spectrum(
     sf = SpectrumFactory(
         **kwargs,
         verbose = False,
-        warnings = "ignore"
+        warnings = {
+            'MissingSelfBroadeningWarning' : 'ignore',
+            'UserWarning' : 'ignore',
+            'NegativeEnergiesWarning' : 'ignore',
+            'HighTemperatureWarning' : 'ignore'
+        }
     )
 
     # Decide the type of model - LTE or Non-LTE

@@ -4,8 +4,8 @@ Modules for conducting spectrum fitting and modeling (LTE and non-LTE).
 """
 
 from .fitting_module import (
-    get_conditions, 
-    spectrum_refinement, 
+    get_conditions,
+    spectrum_refinement,
     fit_spectrum
 )
 from .model_LTE import residual_LTE

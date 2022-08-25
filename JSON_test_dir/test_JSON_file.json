@@ -10,7 +10,8 @@
     "mole_fraction": 0.96,
     "path_length": 1,
     "offset": "-0.2 nm",
-    "slit": "1 nm"
+    "slit": "1 nm",
+    "databank": "hitemp"
   },
   "fit": {
     "Tgas": 1000

@@ -55,9 +55,14 @@ def residual_NonLTE(params, conditions, s_data, sf, log, verbose = True):
     # GENERATE NON-LTE SPECTRUM BASED ON THOSE PARAMETERS
 
     # Load initial values of fit parameters
+    ignore_keys = [
+        "offsetnm",
+        "offsetcm-1",
+    ]
     kwargs = {}
     for param in params:
-        kwargs[param] = float(params[param])
+        if param not in ignore_keys:
+            kwargs[param] = float(params[param])
 
     # Deal with the case of multiple Tvib temperatures
     if "Tvib0" in kwargs:       # There is trace of a "Tvib fragmentation" before
@@ -70,6 +75,14 @@ def residual_NonLTE(params, conditions, s_data, sf, log, verbose = True):
     
     # Spectrum calculation
     s_model = sf.non_eq_spectrum(**kwargs)
+
+    # Deal with "offset"
+    if "offsetnm" in params:
+        offset_value = float(params["offsetnm"])
+        s_model = s_model.offset(offset_value, "nm")
+    if "offsetcm-1" in params:
+        offset_value = float(params["offsetcm-1"])
+        s_model = s_model.offset(offset_value, "cm-1")
 
 
     # FURTHER REFINE THE MODELED SPECTRUM BEFORE CALCULATING DIFF

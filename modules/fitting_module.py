@@ -107,6 +107,15 @@ def get_conditions(
             # Destroy the original "Tvib" key
             fit_params.pop("Tvib")
 
+    # Deal with "offset", which is something like "-0.2 nm", as requested by Mr. Minou
+
+    if "offset" in fit_params:
+
+        offset_value, offset_unit = fit_params.pop("offset").split()
+
+        # Get numerical value only, and add unit to name for later identification
+        fit_params[f"offset{offset_unit}"] = float(offset_value)
+
     # Put every fit parameter into Parameters, with the default bounding range
 
     for param in fit_params:
@@ -115,6 +124,8 @@ def get_conditions(
 
         if (param == "mole_fraction"):
             init_bound = [0, 1]
+        elif ("offset" in param):       # Either "offsetnm" or "offsetcm-1"
+            init_bound = [-1, 1]
         else:
             init_bound = [
                 (init_val - dhb) if init_val > dhb else 0, 
@@ -125,7 +136,7 @@ def get_conditions(
             param,
             value = init_val,
             min = init_bound[0],
-            max = init_bound[1]
+            max = init_bound[1],
         )
 
     # READ "bounds" KEY AND RE-ASSIGN DEFAULT BOUNDING RANGES WITH USER-DEFINED ONES
@@ -149,6 +160,19 @@ def get_conditions(
 
                     # Destroy the original key
                     bounds.pop("Tvib")
+
+        # Deal with "offset", especially now the offset parameter is either "offsetnm" or "offsetcm-1"
+
+        if "offset" in bounds:
+
+            bound_offset = bounds.pop("offset")
+
+            if "offsetnm" in params:
+                bounds["offsetnm"] = bound_offset
+
+            if "offsetcm-1" in params:
+                bounds["offsetcm-1"] = bound_offset
+
 
         # Set user-defined bounding ranges
         
@@ -320,7 +344,7 @@ def fit_spectrum(
             )
         )
 
-    else:                           # The user states a bunch of dicts separately
+    else:       # The user states a bunch of dicts separately
 
         # Merge all separated dict inputs into a single dict first
 
@@ -384,6 +408,7 @@ def fit_spectrum(
     ignore_keys = [
         "slit",
         "offset",
+        "databank",
     ]
 
     for cond in model:
@@ -399,6 +424,11 @@ def fit_spectrum(
             'NegativeEnergiesWarning' : 'ignore',
             'HighTemperatureWarning' : 'ignore'
         }
+    )
+
+    databank = model.pop("databank")
+    sf.fetch_databank(
+        databank
     )
 
     # Decide the type of model - LTE or Non-LTE
@@ -437,11 +467,6 @@ def fit_spectrum(
     # For LTE spectra
     if LTE:
 
-        sf.fetch_databank(
-            "hitran",
-            load_columns = "equilibrium"
-        )
-
         print("\nCommence fitting process for LTE spectrum!")
         result = minimize(
             residual_LTE, 
@@ -453,11 +478,6 @@ def fit_spectrum(
 
     # For non-LTE spectra
     if not(LTE):
-
-        sf.fetch_databank(
-            "hitemp",
-            load_columns = "noneq"
-        )
 
         print("\nCommence fitting process for non-LTE spectrum!")
         result = minimize(
@@ -485,8 +505,13 @@ def fit_spectrum(
 
         # Load initial values of fit parameters
         fit_show = {}
+        offset_unit = ""
         for name, param in result.params.items():
-            fit_show[name] = float(param.value)
+            if "offset" in name:                # "offset" detected
+                offset_value = float(param.value)
+                offset_unit = name[6 : ]
+            else:                               # Other parameters not related to offset
+                fit_show[name] = float(param.value)
         fit_show["name"] = "best_fit"
 
         # Generate best fitted spectrum result
@@ -495,7 +520,11 @@ def fit_spectrum(
         else:
             s_result = sf.non_eq_spectrum(**fit_show)
 
-        # Apply slit
+        # In case offset is detected in parameters
+        if offset_unit != "":
+            s_result = s_result.offset(offset_value, offset_unit)
+
+        # Apply slit stated in "model"
         if "slit" in model:
             slit, slit_unit = model["slit"].split()
             s_result = s_result.apply_slit(float(slit), slit_unit)
@@ -503,7 +532,7 @@ def fit_spectrum(
         # Take spectral quantity
         s_result = s_result.take(fit_var)
 
-        # Apply offset
+        # Apply offset stated in "model"
         if "offset" in model:
             off_val, off_unit = model["offset"].split()
             s_result = s_result.offset(float(off_val), off_unit)

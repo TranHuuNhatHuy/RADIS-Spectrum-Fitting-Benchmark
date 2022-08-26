@@ -57,7 +57,7 @@ def residual_LTE(params, conditions, s_data, sf, log, verbose = True):
     # Load initial values of fit parameters
     ignore_keys = [
         "offsetnm",
-        "offsetcm-1",
+        "offsetcm1",
     ]
     kwargs = {}
     for param in params:
@@ -71,8 +71,8 @@ def residual_LTE(params, conditions, s_data, sf, log, verbose = True):
     if "offsetnm" in params:
         offset_value = float(params["offsetnm"])
         s_model = s_model.offset(offset_value, "nm")
-    if "offsetcm-1" in params:
-        offset_value = float(params["offsetcm-1"])
+    if "offsetcm1" in params:
+        offset_value = float(params["offsetcm1"])
         s_model = s_model.offset(offset_value, "cm-1")
 
 

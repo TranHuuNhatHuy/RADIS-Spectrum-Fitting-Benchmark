@@ -112,9 +112,17 @@ def get_conditions(
     if "offset" in fit_params:
 
         offset_value, offset_unit = fit_params.pop("offset").split()
+        if offset_unit == "cm-1":
+            offset_unitName = "cm1"
+        elif offset_unit == "nm":
+            offset_unitName = "nm"
+        else:
+            raise ValueError(f"Unrecognizable offset unit {offset_unit}. Only \"nm\" and \"cm-1\" are accepted.")
+
+        # The reason for all the mess above is, LMFIT does not accept parameter name with hyphen like cm-1. So I remove the hyphen.
 
         # Get numerical value only, and add unit to name for later identification
-        fit_params[f"offset{offset_unit}"] = float(offset_value)
+        fit_params[f"offset{offset_unitName}"] = float(offset_value)
 
     # Put every fit parameter into Parameters, with the default bounding range
 
@@ -124,7 +132,7 @@ def get_conditions(
 
         if (param == "mole_fraction"):
             init_bound = [0, 1]
-        elif ("offset" in param):       # Either "offsetnm" or "offsetcm-1"
+        elif ("offset" in param):       # Either "offsetnm" or "offsetcm1"
             init_bound = [-1, 1]
         else:
             init_bound = [
@@ -161,7 +169,7 @@ def get_conditions(
                     # Destroy the original key
                     bounds.pop("Tvib")
 
-        # Deal with "offset", especially now the offset parameter is either "offsetnm" or "offsetcm-1"
+        # Deal with "offset", especially now the offset parameter is either "offsetnm" or "offsetcm1"
 
         if "offset" in bounds:
 
@@ -170,8 +178,8 @@ def get_conditions(
             if "offsetnm" in params:
                 bounds["offsetnm"] = bound_offset
 
-            if "offsetcm-1" in params:
-                bounds["offsetcm-1"] = bound_offset
+            if "offsetcm1" in params:
+                bounds["offsetcm1"] = bound_offset
 
 
         # Set user-defined bounding ranges
@@ -510,6 +518,9 @@ def fit_spectrum(
             if "offset" in name:                # "offset" detected
                 offset_value = float(param.value)
                 offset_unit = name[6 : ]
+                # Deal with "cm1"
+                if offset_unit == "cm1":
+                    offset_unit = "cm-1"
             else:                               # Other parameters not related to offset
                 fit_show[name] = float(param.value)
         fit_show["name"] = "best_fit"

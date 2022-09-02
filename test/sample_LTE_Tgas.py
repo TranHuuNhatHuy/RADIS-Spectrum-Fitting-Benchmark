@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from modules.fitting_module import fit_spectrum
 from radis import load_spec
 
@@ -18,7 +16,8 @@ experimental_conditions = {
     "pressure" : 10,            # Partial pressure of gas, in "bar" unit.
     "path_length" : 1,          # Experimental path length, in "cm" unit.
     "slit" : "1 nm",            # Experimental slit, must be a blank space separating slit amount and unit.
-    "offset" : "-0.2 nm"        # Experimental offset, must be a blank space separating offset amount and unit.
+    "offset" : "-0.2 nm",       # Experimental offset, must be a blank space separating offset amount and unit.
+    "databank" : "hitemp"       # Databank used for the spectrum calculation.
 }
 
 # List of parameters to be fitted.

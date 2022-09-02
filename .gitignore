@@ -1,3 +1,6 @@
 *.pyc
 modules/test.py
 test.py
+.DS_Store
+test/sample_LTE_Tgas.py
+sample_LTE_Tgas.py

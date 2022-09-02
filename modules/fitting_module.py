@@ -16,8 +16,10 @@ the algorithm and other specific settings will be stored as a model file in
 
 """
 
+from ctypes import sizeof
 from logging import warning
 from math import nan
+import string
 import numpy as np
 import time
 import astropy.units as u
@@ -247,7 +249,8 @@ def spectrum_refinement(s_data, conditions, verbose = True) -> Union[Spectrum, d
     s_data_mtr = s_data_mtr[:, ~np.isnan(s_data_mtr).any(axis = 0)]     # Purge NaN pairs
 
     if verbose:
-        print(f"NaN values successfully purged.")           
+        print(f"NaN values successfully purged.")
+        print(f"Number of data points: {len(s_data_mtr[0])} - {len(s_data_mtr[1])}")           
 
     # Recreate the data spectrum with the spectral quantity
 
@@ -434,11 +437,6 @@ def fit_spectrum(
         }
     )
 
-    databank = model.pop("databank")
-    sf.fetch_databank(
-        databank
-    )
-
     # Decide the type of model - LTE or Non-LTE
     LTE = True                                         # LTE == True means it's LTE
     if ("Tvib" in params) or ("Tvib0" in params):
@@ -472,8 +470,15 @@ def fit_spectrum(
 
     # COMMENCE THE FITTING PROCESS
 
+    databank = model.pop("databank")
+
     # For LTE spectra
     if LTE:
+
+        sf.fetch_databank(
+            databank,
+            load_columns = "equilibrium"
+        )
 
         print("\nCommence fitting process for LTE spectrum!")
         result = minimize(
@@ -486,6 +491,11 @@ def fit_spectrum(
 
     # For non-LTE spectra
     if not(LTE):
+
+        sf.fetch_databank(
+            databank,
+            load_columns = "noneq"
+        )
 
         print("\nCommence fitting process for non-LTE spectrum!")
         result = minimize(
@@ -537,8 +547,20 @@ def fit_spectrum(
 
         # Apply slit stated in "model"
         if "slit" in model:
-            slit, slit_unit = model["slit"].split()
-            s_result = s_result.apply_slit(float(slit), slit_unit)
+
+            slit_model = model["slit"]
+
+            # The user uses simple format of "[value] [unit]", such as "-0.2 nm"
+            if isinstance(slit_model, str):
+                slit_val, slit_unit = slit_model.split()
+                s_result = s_result.apply_slit(float(slit_val), slit_unit)
+
+            # The user uses a dict with complex format of slit function, unit, shape, center wavespace, dispersion, etc.
+            if isinstance(slit_model, dict):
+                kwargs = {}
+                for cond in slit_model:
+                    kwargs[cond] = slit_model[cond]
+                s_result = s_result.apply_slit(**kwargs)
 
         # Take spectral quantity
         s_result = s_result.take(fit_var)

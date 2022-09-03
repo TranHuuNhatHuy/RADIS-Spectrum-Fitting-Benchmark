@@ -90,10 +90,22 @@ def residual_NonLTE(params, conditions, s_data, sf, log, verbose = True):
     pipeline = conditions["pipeline"]
     model = conditions["model"]
 
-    # Apply slit
+    # Apply slit stated in "model"
     if "slit" in model:
-        slit, slit_unit = model["slit"].split()
-        s_model = s_model.apply_slit(float(slit), slit_unit)
+
+        slit_model = model["slit"]
+
+        # The user uses simple format of "[value] [unit]", such as "-0.2 nm"
+        if isinstance(slit_model, str):
+            slit_val, slit_unit = slit_model.split()
+            s_model = s_model.apply_slit(float(slit_val), slit_unit)
+
+        # The user uses a dict with complex format of slit function, unit, shape, center wavespace, dispersion, etc.
+        if isinstance(slit_model, dict):
+            kwargs = {}
+            for cond in slit_model:
+                kwargs[cond] = slit_model[cond]
+            s_model = s_model.apply_slit(**kwargs)
 
     # Take spectral quantity
     fit_var = pipeline["fit_var"]
